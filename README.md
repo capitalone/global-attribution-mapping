@@ -1,7 +1,12 @@
 # GAM (Global Attribution Mapping)
-Global Explanations for Deep Neural Networks
+> Global Explanations for Deep Neural Networks
+
+GAM explains the landscape of neural network predictions across subpopulations. 
+
+This implementation is based on "[Global Explanations for Neural Networks](https://arxiv.org/abs/1902.02384): Mapping the Landscape of Predictions" (AAAI/ACM AIES 2019).
 
 ## Get Started
+First generate local attributions using your favorite technique, then
 ```Python
 >>> gam = GAM(local_path="local_attributions.csv", 
                                distance="spearman", 
@@ -22,6 +27,8 @@ Global Explanations for Deep Neural Networks
 # bar chart of feature importance with subpopulation size
 ```
 
+# Acknowledgements
+Thank you to Paul Zeng for his contribution to the implementation and valuable feedback.
 
 # Development
 * `Python 3.6`, `Pytest`, `requirements.txt` for dependencies
