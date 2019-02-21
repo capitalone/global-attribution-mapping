@@ -8,7 +8,7 @@ This implementation is based on "[Global Explanations for Neural Networks](https
 ## Get Started
 First generate local attributions using your favorite technique, then
 ```Python
->>> gam = GAM(local_path="local_attributions.csv", 
+>>> gam = GAM(attributions_path="local_attributions.csv", 
                                distance="spearman", 
                                k=2)
 >>> gam.generate()
