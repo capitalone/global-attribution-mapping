@@ -1,4 +1,6 @@
 from gam.kendall_tau_distance import ktau_weighted_distance
+from gam.kendall_tau_distance import mergeSortDistance
+
 from gam.kendall_tau_distance import pairwise_distance_matrix
 
 
@@ -30,3 +32,11 @@ def test_pairwise_distance_matrix():
     assert D[2][2] == 0
     # distance between r2 and r3 is closer than r2 and r1
     assert D[1][2] < D[1][0]
+
+
+def test_ktau_accuracy():
+    """ Floating point accuracy test for testing faster calculation methods """
+    r1 = [0.27, 0.24, 0.26, 0.23]
+    r2 = [0.05, 0.2, 0.7, 0.05]
+    assert ktau_weighted_distance(r1, r2) == 0.0031050000000000006
+    assert mergeSortDistance(r1, r2)      == 0.0031050000000000006
