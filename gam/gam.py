@@ -140,7 +140,8 @@ class GAM:
             plt.tight_layout()
             if output_path_base:
                 output_path = '{}_explanation_{}.png'.format(output_path_base, idx+1)
-                plt.savefig(output_path)
+                # bbox_inches option prevents labels cutting off
+                plt.savefig(output_path, bbox_inches='tight')
 
             if display:
                 plt.show()
