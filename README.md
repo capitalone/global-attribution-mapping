@@ -46,6 +46,7 @@ $ python -m pytest tests/
 * assume local attributions are given
 * K is a specified parameter
 * accompany csv output with a simple visualization showing top 5 clusters and their top 5 features
+* accelerated distance calc using merge sort (from O(n^2) to O(nlogn))
 
 ### Post-MVP
 * optimize k based on silouhette score
