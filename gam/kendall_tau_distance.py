@@ -94,8 +94,8 @@ def mergeSortInversions(arr, indList):
             c.append(b[j])
             inversions += (len(a) - i)
             tmpInvList = [(a[i][1], b[j][1])]
-            print('inversion - i=:', i, ' j=', j, 'inv=', inversions, ' ind=', indList,
-                  'arr=', arr, a, b, 'a=', a[i][0], 'b=', b[j][0], 'tmpList = ', tmpInvList)
+#            print('inversion - i=:', i, ' j=', j, 'inv=', inversions, ' ind=', indList,
+#                  'arr=', arr, a, b, 'a=', a[i][0], 'b=', b[j][0], 'tmpList = ', tmpInvList)
 
             j += 1
             indList.extend(tmpInvList)

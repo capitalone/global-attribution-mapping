@@ -114,10 +114,49 @@ class GAM:
             explanations.append(list(zip(self.feature_labels, explanation_weights)))
         return explanations
 
+    def get_optimal_clustering(self, cluster_list=[2, 3, 4, 5, 6]):
+        from sklearn.metrics import silhouette_score  # silhouette_samples,
+        from gam.spearman_distance import pairwise_spearman_distance_matrix
+        from gam.kendall_tau_distance import pairwise_distance_matrix
+
+        silhList = []
+        for nCluster in cluster_list:
+            self.k = nCluster
+            self.generate()
+
+            # TODO - save GAM clusters to pkl file - saves recomputing
+            if self.distance == 'spearman':
+                D = pairwise_spearman_distance_matrix(self.normalized_attributions)
+            elif self.distance == 'kendall_tau':
+                D = pairwise_distance_matrix(self.normalized_attributions)
+
+            silhouette_avg = silhouette_score(D, self.subpopulations, metric='precomputed')
+            silhList.append(silhouette_avg)
+
+            print(nCluster, silhouette_avg)
+
+        sortedSilh, sortedCluster = zip(*sorted(zip(silhList, cluster_list)))
+
+        print('Sorted silh scores  - ', sortedSilh)
+        print('Sorted cluster vals - ', sortedCluster)
+
+        # regenerate global attributions now that we've found the 'optimal' number of clusters
+        nCluster = sortedCluster[0]  # 4  # ??? for RF # ??? for DNN, and 4 for CNN
+#        g = gam.GAM(attributions_path=sampledAttributionsFile, distance="spearman", k=nCluster)
+#        g.generate()
+        self.k = nCluster
+        self.generate()
+
+        # save to pickle file
+#        with open(pickleFile, 'wb') as f:
+#            pickle.dump(g, f)
+
+        return
+
     def plot(self, num_features=5, output_path_base=None, display=True):
         """Shows bar graph of feature importance per global explanation
         ## TODO: Move this function to a seperate module
-        
+
         Args:
             num_features: number of top features to plot, int
             output_path_base: path to store plots
@@ -129,17 +168,17 @@ class GAM:
         fig_x, fig_y = 5, num_features
 
         for idx, explanations in enumerate(self.explanations):
-            _, axs = plt.subplots(1, 1, figsize=(fig_x, fig_y), sharey = True)
+            _, axs = plt.subplots(1, 1, figsize=(fig_x, fig_y), sharey=True)
 
             explanations_sorted = sorted(explanations, key=lambda x: x[-1], reverse=False)[-num_features:]
             axs.barh(*zip(*explanations_sorted))
-            axs.set_xlim([0,1])
-            axs.set_title('Explanation {}'.format(idx+1), size=10)
+            axs.set_xlim([0, 1])
+            axs.set_title('Explanation {}'.format(idx + 1), size=10)
             axs.set_xlabel('Importance', size=10)
 
             plt.tight_layout()
             if output_path_base:
-                output_path = '{}_explanation_{}.png'.format(output_path_base, idx+1)
+                output_path = '{}_explanation_{}.png'.format(output_path_base, idx + 1)
                 # bbox_inches option prevents labels cutting off
                 plt.savefig(output_path, bbox_inches='tight')
 
