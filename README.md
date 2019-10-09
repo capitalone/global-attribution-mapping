@@ -31,7 +31,7 @@ First generate local attributions using your favorite technique, then
 Thank you to Paul Zeng for his contribution to the implementation and valuable feedback.
 
 # Development
-* `Python 3.6`, `Pytest`, `requirements.txt` for dependencies
+* `Python 3.7`, `Pytest`, `requirements.txt` for dependencies
 * Branching: master is protected (need one other reviewer to merge)
 * Input/Output: csv (columns: features, rows: local/global attribution)
 * Underlying data structures: `numpy arrays`

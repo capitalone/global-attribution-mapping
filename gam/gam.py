@@ -9,12 +9,17 @@ TODO:
 import math
 import csv
 from collections import Counter
+import logging
 
 import numpy as np
 import matplotlib.pylab as plt
 
 from gam.clustering import KMedoids
-from gam.spearman_distance import spearman_squared_distance
+from gam.spearman_distance import spearman_squared_distance, pairwise_spearman_distance_matrix
+from gam.kendall_tau_distance import pairwise_distance_matrix
+from sklearn.metrics import silhouette_score
+
+logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO)
 
 
 class GAM:
@@ -29,7 +34,7 @@ class GAM:
     def __init__(self, attributions_path="local_attributions.csv", distance="spearman", k=2):
         self.attributions_path = attributions_path
         self.distance = distance
-        self.k = k
+        self.k = k  # Do we want to pass this in here? If so, why include get_optimal as method
 
         self.attributions = None
         self.normalized_attributions = None
@@ -49,10 +54,8 @@ class GAM:
         """
 
         self.attributions = np.genfromtxt(
-            self.attributions_path,
-            dtype=float,
-            delimiter=',',
-            skip_header=1)
+            self.attributions_path, dtype=float, delimiter=",", skip_header=1
+        )
 
         with open(self.attributions_path) as attribution_file:
             self.feature_labels = next(csv.reader(attribution_file))
@@ -114,44 +117,43 @@ class GAM:
             explanations.append(list(zip(self.feature_labels, explanation_weights)))
         return explanations
 
-    def get_optimal_clustering(self, cluster_list=[2, 3, 4, 5, 6]):
-        from sklearn.metrics import silhouette_score  # silhouette_samples,
-        from gam.spearman_distance import pairwise_spearman_distance_matrix
-        from gam.kendall_tau_distance import pairwise_distance_matrix
+    def get_optimal_clustering(self, max_clusters=2, verbose=False):
+        """Automatically select optimal cluster count
 
-        silhList = []
-        for nCluster in cluster_list:
-            self.k = nCluster
+        Args:
+            cluster (int): maximum amount of clusters to test
+
+        Returns: None
+        """
+        silh_list = []
+        max_clusters = max(2, max_clusters)
+
+        for n_cluster in range(2, max_clusters + 1):
+            self.k = n_cluster  # Updating the class attribute repeatedly may not be best practice
             self.generate()
 
             # TODO - save GAM clusters to pkl file - saves recomputing
-            if self.distance == 'spearman':
+            if self.distance == "spearman":
                 D = pairwise_spearman_distance_matrix(self.normalized_attributions)
-            elif self.distance == 'kendall_tau':
+            elif self.distance == "kendall_tau":
                 D = pairwise_distance_matrix(self.normalized_attributions)
 
-            silhouette_avg = silhouette_score(D, self.subpopulations, metric='precomputed')
-            silhList.append(silhouette_avg)
+            silhouette_avg = silhouette_score(D, self.subpopulations, metric="precomputed")
+            silh_list.append((silhouette_avg, n_cluster))
 
-            print(nCluster, silhouette_avg)
+            if verbose:
+                logging.info(f"{n_cluster} cluster score: {silhouette_avg}")
 
-        sortedSilh, sortedCluster = zip(*sorted(zip(silhList, cluster_list)))
+        silh_list.sort()
+        self.silh_scores = silh_list
 
-        print('Sorted silh scores  - ', sortedSilh)
-        print('Sorted cluster vals - ', sortedCluster)
+        if verbose:
+            logging.info(f"Sorted silh scores  - {self.silh_scores}")
 
         # regenerate global attributions now that we've found the 'optimal' number of clusters
-        nCluster = sortedCluster[0]  # 4  # ??? for RF # ??? for DNN, and 4 for CNN
-#        g = gam.GAM(attributions_path=sampledAttributionsFile, distance="spearman", k=nCluster)
-#        g.generate()
+        nCluster = self.silh_scores[-1][1]
         self.k = nCluster
         self.generate()
-
-        # save to pickle file
-#        with open(pickleFile, 'wb') as f:
-#            pickle.dump(g, f)
-
-        return
 
     def plot(self, num_features=5, output_path_base=None, display=True):
         """Shows bar graph of feature importance per global explanation
@@ -162,7 +164,7 @@ class GAM:
             output_path_base: path to store plots
             display: option to display plot after generation, bool
         """
-        if not hasattr(self, 'explanations'):
+        if not hasattr(self, "explanations"):
             self.generate()
 
         fig_x, fig_y = 5, num_features
@@ -170,17 +172,19 @@ class GAM:
         for idx, explanations in enumerate(self.explanations):
             _, axs = plt.subplots(1, 1, figsize=(fig_x, fig_y), sharey=True)
 
-            explanations_sorted = sorted(explanations, key=lambda x: x[-1], reverse=False)[-num_features:]
+            explanations_sorted = sorted(explanations, key=lambda x: x[-1], reverse=False)[
+                -num_features:
+            ]
             axs.barh(*zip(*explanations_sorted))
             axs.set_xlim([0, 1])
-            axs.set_title('Explanation {}'.format(idx + 1), size=10)
-            axs.set_xlabel('Importance', size=10)
+            axs.set_title("Explanation {}".format(idx + 1), size=10)
+            axs.set_xlabel("Importance", size=10)
 
             plt.tight_layout()
             if output_path_base:
-                output_path = '{}_explanation_{}.png'.format(output_path_base, idx + 1)
+                output_path = "{}_explanation_{}.png".format(output_path_base, idx + 1)
                 # bbox_inches option prevents labels cutting off
-                plt.savefig(output_path, bbox_inches='tight')
+                plt.savefig(output_path, bbox_inches="tight")
 
             if display:
                 plt.show()
