@@ -4,9 +4,7 @@ import logging
 from sklearn.datasets import make_blobs
 from gam import gam
 
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO
-)
+logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO)
 
 
 def test_find_optimal_clusters():

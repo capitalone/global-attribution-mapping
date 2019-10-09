@@ -15,16 +15,11 @@ import numpy as np
 import matplotlib.pylab as plt
 
 from gam.clustering import KMedoids
-from gam.spearman_distance import (
-    spearman_squared_distance,
-    pairwise_spearman_distance_matrix,
-)
+from gam.spearman_distance import spearman_squared_distance, pairwise_spearman_distance_matrix
 from gam.kendall_tau_distance import pairwise_distance_matrix
 from sklearn.metrics import silhouette_score
 
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO
-)
+logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO)
 
 
 class GAM:
@@ -36,12 +31,10 @@ class GAM:
         k (int): number of subpopulations to surface
     """
 
-    def __init__(
-        self, attributions_path="local_attributions.csv", distance="spearman", k=2
-    ):
+    def __init__(self, attributions_path="local_attributions.csv", distance="spearman", k=2):
         self.attributions_path = attributions_path
         self.distance = distance
-        self.k = k # Do we want to pass this in here? If so, why include get_optimal as method
+        self.k = k  # Do we want to pass this in here? If so, why include get_optimal as method
 
         self.attributions = None
         self.normalized_attributions = None
@@ -83,13 +76,9 @@ class GAM:
 
         return np.abs(attributions) / total
 
-    def _cluster(
-        self, distance_function=spearman_squared_distance, max_iter=1000, tol=0.0001
-    ):
+    def _cluster(self, distance_function=spearman_squared_distance, max_iter=1000, tol=0.0001):
         """Calls kmedoids module to group attributions"""
-        clusters = KMedoids(
-            self.k, dist_func=distance_function, max_iter=max_iter, tol=tol
-        )
+        clusters = KMedoids(self.k, dist_func=distance_function, max_iter=max_iter, tol=tol)
         clusters.fit(self.normalized_attributions, verbose=False)
 
         self.subpopulations = clusters.members
@@ -137,12 +126,10 @@ class GAM:
         Returns: None
         """
         silh_list = []
-        max_clusters = max(2,max_clusters)
+        max_clusters = max(2, max_clusters)
 
         for n_cluster in range(2, max_clusters + 1):
-            self.k = (
-                n_cluster
-            )  # Updating the class attribute repeatedly may not be best practice
+            self.k = n_cluster  # Updating the class attribute repeatedly may not be best practice
             self.generate()
 
             # TODO - save GAM clusters to pkl file - saves recomputing
@@ -151,9 +138,7 @@ class GAM:
             elif self.distance == "kendall_tau":
                 D = pairwise_distance_matrix(self.normalized_attributions)
 
-            silhouette_avg = silhouette_score(
-                D, self.subpopulations, metric="precomputed"
-            )
+            silhouette_avg = silhouette_score(D, self.subpopulations, metric="precomputed")
             silh_list.append((silhouette_avg, n_cluster))
 
             if verbose:
@@ -169,7 +154,6 @@ class GAM:
         nCluster = self.silh_scores[-1][1]
         self.k = nCluster
         self.generate()
-
 
     def plot(self, num_features=5, output_path_base=None, display=True):
         """Shows bar graph of feature importance per global explanation
@@ -188,9 +172,9 @@ class GAM:
         for idx, explanations in enumerate(self.explanations):
             _, axs = plt.subplots(1, 1, figsize=(fig_x, fig_y), sharey=True)
 
-            explanations_sorted = sorted(
-                explanations, key=lambda x: x[-1], reverse=False
-            )[-num_features:]
+            explanations_sorted = sorted(explanations, key=lambda x: x[-1], reverse=False)[
+                -num_features:
+            ]
             axs.barh(*zip(*explanations_sorted))
             axs.set_xlim([0, 1])
             axs.set_title("Explanation {}".format(idx + 1), size=10)
