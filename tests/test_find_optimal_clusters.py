@@ -9,7 +9,7 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s: %(message)s", level=log
 
 def test_find_optimal_clusters():
     """"Create sample attributions with 4 clusters"""
-    attributions_file = "test_opt.csv"
+    attributions_file = "tests/output/test_opt.csv"
     X, y = make_blobs(
         n_samples=40,
         n_features=2,
@@ -30,7 +30,8 @@ def test_find_optimal_clusters():
 
     logging.info(f"attributions file - {g.attributions_path}")
     logging.info(f"what we settled on - {g.k}")
-
+    logging.info(f"g.silh_scores = {g.silh_scores}")
+    
     assert g.silh_scores == [
         (-0.6997008553383604, 4),
         (-0.49646173501281243, 3),
