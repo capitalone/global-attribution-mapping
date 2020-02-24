@@ -5,12 +5,12 @@ GAM explains the landscape of neural network predictions across subpopulations.
 
 This implementation is based on "[Global Explanations for Neural Networks](https://arxiv.org/abs/1902.02384): Mapping the Landscape of Predictions" (AAAI/ACM AIES 2019).
 
-## Get Started
-First generate local attributions using your favorite technique, then:
-
+## Installation
 ```sh
 python3 -m pip install git+https://github.com/capitalone/global-attribution-mapping.git
-```
+```  
+## Get Started
+First generate local attributions using your favorite technique, then:
 
 ```Python
 >>> from gam.gam import GAM
