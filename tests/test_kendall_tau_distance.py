@@ -2,6 +2,7 @@ from gam.kendall_tau_distance import ktau_weighted_distance
 from gam.kendall_tau_distance import mergeSortDistance
 
 from gam.kendall_tau_distance import pairwise_distance_matrix
+from sklearn.metrics import pairwise_distances
 
 
 def test_ktau_symmetry():

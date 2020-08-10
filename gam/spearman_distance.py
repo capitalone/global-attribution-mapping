@@ -7,6 +7,8 @@ TODO:
 - add tests
 """
 
+from sklearn.metrics import pairwise_distances, silhouette_score
+
 
 def spearman_squared_distance(r_1, r_2):
     """
@@ -25,7 +27,7 @@ def spearman_squared_distance(r_1, r_2):
     distance = 0
 
     for r_1_value, r_2_value in zip(r_1, r_2):
-        order_penalty = (r_1_value - r_2_value)**2
+        order_penalty = (r_1_value - r_2_value) ** 2
         weight = r_1_value * r_2_value * 100 * 100
         distance += weight * order_penalty
 
@@ -33,6 +35,13 @@ def spearman_squared_distance(r_1, r_2):
 
 
 def pairwise_spearman_distance_matrix(rankings):
+    D = pairwise_distances(
+        self.normalized_attributions, metric=spearman_squared_distance
+    )
+    return D
+
+
+def pairwise_spearman_distance_matrix_legacy(rankings):
     """
     Computes a matrix of pairwise distance
 
