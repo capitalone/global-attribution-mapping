@@ -7,8 +7,28 @@ TODO:
 - add tests
 """
 
+import numpy as np
 
-def spearman_squared_distance(r_1, r_2):
+def spearman_squared_distance(a, b):
+    """
+    Computes weighted Spearmans's Rho squared distance.  Runs in O(n).  
+    Numpy for efficiency.
+
+    Args:
+        a, b: 1D numpy arrays of normalized local attributions - e.g. np.sum(a) =1
+
+    Returns:
+        distance: float >= 0 - the distance between the two attributions
+    """
+
+    order_penalty = (a - b) ** 2
+    weight = np.multiply(a, b)
+
+    distance = 1e4 * np.sum(np.multiply(order_penalty, weight))
+    return distance
+
+
+def spearman_squared_distance_legacy(r_1, r_2):
     """
     Computes a weighted Spearman's Rho squared distance. Runs in O(n)
 
@@ -25,7 +45,7 @@ def spearman_squared_distance(r_1, r_2):
     distance = 0
 
     for r_1_value, r_2_value in zip(r_1, r_2):
-        order_penalty = (r_1_value - r_2_value)**2
+        order_penalty = (r_1_value - r_2_value) ** 2
         weight = r_1_value * r_2_value * 100 * 100
         distance += weight * order_penalty
 
