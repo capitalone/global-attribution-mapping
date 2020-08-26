@@ -7,10 +7,29 @@ TODO:
 - add tests
 """
 
-from sklearn.metrics import pairwise_distances, silhouette_score
+from sklearn.metrics import pairwise_distances
+import numpy as np
+
+def spearman_squared_distance(a, b):
+    """
+    Computes weighted Spearmans's Rho squared distance.  Runs in O(n).  
+    Numpy for efficiency.
+
+    Args:
+        a, b: 1D numpy arrays of normalized local attributions - e.g. np.sum(a) =1
+
+    Returns:
+        distance: float >= 0 - the distance between the two attributions
+    """
+
+    order_penalty = (a - b) ** 2
+    weight = np.multiply(a, b)
+
+    distance = 1e4 * np.sum(np.multiply(order_penalty, weight))
+    return distance
 
 
-def spearman_squared_distance(r_1, r_2):
+def spearman_squared_distance_legacy(r_1, r_2):
     """
     Computes a weighted Spearman's Rho squared distance. Runs in O(n)
 
