@@ -148,6 +148,11 @@ def mergeSortDistance(r1, r2):
 
 
 def pairwise_distance_matrix(rankings):
+    from sklearn.metrics import pairwise_distances
+    D = pairwise_distances( rankings, metric=mergeSortDistance)
+    return D
+
+def pairwise_distance_matrix_legacy(rankings):
     """
     Computes a matrix of pairwise distance
     Args:
