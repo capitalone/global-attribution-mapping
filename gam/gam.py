@@ -13,8 +13,6 @@ from collections import Counter
 
 import matplotlib.pylab as plt
 import numpy as np
-# from gam.kendall_tau_distance import pairwise_distance_matrix
-# , pairwise_spearman_distance_matrix
 from sklearn.metrics import pairwise_distances, silhouette_score
 
 from gam.clustering import KMedoids
@@ -148,10 +146,8 @@ class GAM:
 
             # TODO - save GAM clusters to pkl file - saves recomputing
             if self.distance == "spearman":
-                #D = pairwise_spearman_distance_matrix(self.normalized_attributions)
                 my_func = spearman_squared_distance
             elif self.distance == "kendall_tau":
-                #D = pairwise_distance_matrix(self.normalized_attributions)
                 my_func = mergeSortDistance
             D = pairwise_distances(self.normalized_attributions, metric=my_func)
 

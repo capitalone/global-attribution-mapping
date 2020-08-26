@@ -31,15 +31,7 @@ def _get_cost(X, centers_id, dist_func):
     """Return total cost and cost of each cluster"""
     dist_mat = np.zeros((len(X), len(centers_id)))
     # compute distance matrix
-#    for j in range(len(centers_id)):
-#        center = X[centers_id[j], :]
-#        for i in range(len(X)):
-#            if i == centers_id[j]:
-#                dist_mat[i, j] = 0.0
-#            else:
-#                dist_mat[i, j] = dist_func(X[i, :], center)
-
-    dist_mat = pairwise_distances(X, X[centers_id,:], metric=dist_func)
+    dist_mat = pairwise_distances(X, X[centers_id,:], metric=dist_func, njobs=-1)
 
     mask = np.argmin(dist_mat, axis=1)
     members = np.zeros(len(X))
