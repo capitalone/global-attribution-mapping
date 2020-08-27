@@ -10,6 +10,7 @@ TODO:
 from sklearn.metrics import pairwise_distances
 import numpy as np
 
+
 def spearman_squared_distance(a, b):
     """
     Computes weighted Spearmans's Rho squared distance.  Runs in O(n).  
@@ -54,10 +55,17 @@ def spearman_squared_distance_legacy(r_1, r_2):
 
 
 def pairwise_spearman_distance_matrix(rankings):
-    D = pairwise_distances(
-        self.normalized_attributions, metric=spearman_squared_distance
+    """Returns Spearman Distances for the provided rankings
+
+    Args:
+        rankings (numpy.array): Normalized Attributions
+
+    Returns:
+        [array[array]]: Spearman Distance Matrix
+    """
+    return pairwise_distances(
+        rankings, metric=spearman_squared_distance
     )
-    return D
 
 
 def pairwise_spearman_distance_matrix_legacy(rankings):
