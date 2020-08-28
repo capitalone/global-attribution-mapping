@@ -28,20 +28,51 @@ class GAM:
     """Generates global attributions
 
     Args:
+        k (int): number of clusters and centroids to form, default=2
         attributions_path (str): path for csv containing local attributions
-        distance (str): distance metric used to compare attributions
-        k (int): number of subpopulations to surface
+        cluster_method: None, or callable, default=None
+            None - use GAM library routines for k-medoids clustering
+            callable - user provided external function to perform clustering
+        distance: {‘spearman’, ‘kendall’}  distance metric used to compare attributions, default='spearman'
+        use_normalized (boolean): whether to use normalized attributions in clustering, default='True'
+        scoring_method (callable) function to calculate scalar representing goodness of fit for a given k, default=None
+        max_iter (int): maximum number of iteration in k-medoids, default=100
+        tol (float): tolerance denoting minimal acceptable amount of improvement, controls early stopping, default=1e-3
     """
 
     def __init__(
-        self, attributions_path="local_attributions.csv", distance="spearman", k=2
+        self,
+        k=2,
+        attributions_path="local_attributions.csv",
+        cluster_method=None,
+        distance="spearman",
+        use_normalized=True,
+        scoring_method=None,
+        max_iter=100,
+        tol=1e-3,
     ):
         self.attributions_path = attributions_path
+        self.cluster_method = cluster_method
+
         self.distance = distance
-        self.k = k 
+        if self.distance == "spearman":
+            self.distance_function = spearman_squared_distance
+        elif self.distance == "kendall":
+            self.distance_function = mergeSortDistance
+        else:
+            self.distance_function = (
+                distance
+            )  # assume this is  metric listed in pairwise.PAIRWISE_DISTANCE_FUNCTIONS
+
+        self.scoring_method = scoring_method
+
+        self.k = k
+        self.max_iter = max_iter
+        self.tol = tol
 
         self.attributions = None
-        self.normalized_attributions = None
+        #self.normalized_attributions = None
+        self.clustering_attributions = None
         self.feature_labels = None
 
         self.subpopulations = None
@@ -80,14 +111,16 @@ class GAM:
 
         return np.abs(attributions) / total
 
-    def _cluster(
-        self, distance_function=spearman_squared_distance, max_iter=1000, tol=0.0001
-    ):
+    def _cluster(self):
+        # , distance_function=spearman_squared_distance, max_iter=1000, tol=0.0001):
         """Calls kmedoids module to group attributions"""
         clusters = KMedoids(
-            self.k, dist_func=distance_function, max_iter=max_iter, tol=tol
+            self.k,
+            dist_func=self.distance_function,
+            max_iter=self.max_iter,
+            tol=self.tol,
         )
-        clusters.fit(self.normalized_attributions, verbose=False)
+        clusters.fit(self.clustering_attributions, verbose=False)
 
         self.subpopulations = clusters.members
         self.subpopulation_sizes = GAM.get_subpopulation_sizes(clusters.members)
@@ -121,10 +154,10 @@ class GAM:
         explanations = []
 
         for center_index in centers:
-            explanation_weights = self.normalized_attributions[center_index]
+            #explanation_weights = self.normalized_attributions[center_index]
+            explanation_weights = self.clustering_attributions[center_index]
             explanations.append(list(zip(self.feature_labels, explanation_weights)))
         return explanations
-
 
     def plot(self, num_features=5, output_path_base=None, display=True):
         """Shows bar graph of feature importance per global explanation
@@ -163,5 +196,8 @@ class GAM:
     def generate(self):
         """Clusters local attributions into subpopulations with global explanations"""
         self._read_local()
-        self.normalized_attributions = GAM.normalize(self.attributions)
+        if self.use_normalized == True:
+            self.clustering_attributions = GAM.normalize(self.attributions)
+        else:
+            self.clustering_attributions = self.attributions
         self._cluster()
