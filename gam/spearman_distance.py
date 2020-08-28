@@ -54,9 +54,7 @@ def spearman_squared_distance_legacy(r_1, r_2):
 
 
 def pairwise_spearman_distance_matrix(rankings):
-    D = pairwise_distances(
-        self.normalized_attributions, metric=spearman_squared_distance
-    )
+    D = pairwise_distances(rankings, metric=spearman_squared_distance)
     return D
 
 
