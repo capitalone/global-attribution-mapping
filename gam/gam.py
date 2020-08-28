@@ -38,9 +38,7 @@ class GAM:
     ):
         self.attributions_path = attributions_path
         self.distance = distance
-        self.k = (
-            k
-        )  # Do we want to pass this in here? If so, why include get_optimal as method
+        self.k = k 
 
         self.attributions = None
         self.normalized_attributions = None
@@ -127,48 +125,6 @@ class GAM:
             explanations.append(list(zip(self.feature_labels, explanation_weights)))
         return explanations
 
-    def get_optimal_clustering(self, max_clusters=2, verbose=False):
-        """Automatically select optimal cluster count
-
-        Args:
-            cluster (int): maximum amount of clusters to test
-
-        Returns: None
-        """
-        silh_list = []
-        max_clusters = max(2, max_clusters)
-
-        for n_cluster in range(2, max_clusters + 1):
-            self.k = (
-                n_cluster
-            )  # Updating the class attribute repeatedly may not be best practice
-            self.generate()
-
-            # TODO - save GAM clusters to pkl file - saves recomputing
-            if self.distance == "spearman":
-                my_func = spearman_squared_distance
-            elif self.distance == "kendall_tau":
-                my_func = mergeSortDistance
-            D = pairwise_distances(self.normalized_attributions, metric=my_func)
-
-            silhouette_avg = silhouette_score(
-                D, self.subpopulations, metric="precomputed"
-            )
-            silh_list.append((silhouette_avg, n_cluster))
-
-            if verbose:
-                logging.info(f"{n_cluster} cluster score: {silhouette_avg}")
-
-        silh_list.sort()
-        self.silh_scores = silh_list
-
-        if verbose:
-            logging.info(f"Sorted silh scores  - {self.silh_scores}")
-
-        # regenerate global attributions now that we've found the 'optimal' number of clusters
-        nCluster = self.silh_scores[-1][1]
-        self.k = nCluster
-        self.generate()
 
     def plot(self, num_features=5, output_path_base=None, display=True):
         """Shows bar graph of feature importance per global explanation
