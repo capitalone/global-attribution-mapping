@@ -1,0 +1,5 @@
+[flake8]
+ignore = E226,E41
+max-line-length = 160
+exclude = .venv,.github,.vscode
+max-complexity=10
