@@ -71,7 +71,7 @@ class GAM:
         self.tol = tol
 
         self.attributions = None
-        #self.normalized_attributions = None
+        # self.normalized_attributions = None
         self.clustering_attributions = None
         self.feature_labels = None
 
@@ -113,18 +113,21 @@ class GAM:
 
     def _cluster(self):
         # , distance_function=spearman_squared_distance, max_iter=1000, tol=0.0001):
-        """Calls kmedoids module to group attributions"""
-        clusters = KMedoids(
-            self.k,
-            dist_func=self.distance_function,
-            max_iter=self.max_iter,
-            tol=self.tol,
-        )
-        clusters.fit(self.clustering_attributions, verbose=False)
+        """Calls local kmedoids module to group attributions"""
+        if self.cluster_method is None:
+            clusters = KMedoids(
+                self.k,
+                dist_func=self.distance_function,
+                max_iter=self.max_iter,
+                tol=self.tol,
+            )
+            clusters.fit(self.clustering_attributions, verbose=False)
 
-        self.subpopulations = clusters.members
-        self.subpopulation_sizes = GAM.get_subpopulation_sizes(clusters.members)
-        self.explanations = self._get_explanations(clusters.centers)
+            self.subpopulations = clusters.members
+            self.subpopulation_sizes = GAM.get_subpopulation_sizes(clusters.members)
+            self.explanations = self._get_explanations(clusters.centers)
+        else:
+            cluster_method(self)
 
     @staticmethod
     def get_subpopulation_sizes(subpopulations):
@@ -154,7 +157,7 @@ class GAM:
         explanations = []
 
         for center_index in centers:
-            #explanation_weights = self.normalized_attributions[center_index]
+            # explanation_weights = self.normalized_attributions[center_index]
             explanation_weights = self.clustering_attributions[center_index]
             explanations.append(list(zip(self.feature_labels, explanation_weights)))
         return explanations
@@ -201,3 +204,5 @@ class GAM:
         else:
             self.clustering_attributions = self.attributions
         self._cluster()
+        if scoring_method is not None:
+            self.scoring_method()
