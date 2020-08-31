@@ -206,5 +206,5 @@ class GAM:
         else:
             self.clustering_attributions = self.attributions
         self._cluster()
-        if self.scoring_method is not None:
+        if self.scoring_method:
             self.score = self.scoring_method(self)
