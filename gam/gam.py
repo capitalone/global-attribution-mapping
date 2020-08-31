@@ -72,6 +72,7 @@ class GAM:
 
         self.attributions = None
         # self.normalized_attributions = None
+        self.use_normalized = use_normalized
         self.clustering_attributions = None
         self.feature_labels = None
 
@@ -127,7 +128,7 @@ class GAM:
             self.subpopulation_sizes = GAM.get_subpopulation_sizes(clusters.members)
             self.explanations = self._get_explanations(clusters.centers)
         else:
-            cluster_method(self)
+            self.cluster_method(self)
 
     @staticmethod
     def get_subpopulation_sizes(subpopulations):
@@ -199,10 +200,10 @@ class GAM:
     def generate(self):
         """Clusters local attributions into subpopulations with global explanations"""
         self._read_local()
-        if self.use_normalized == True:
+        if self.use_normalized:
             self.clustering_attributions = GAM.normalize(self.attributions)
         else:
             self.clustering_attributions = self.attributions
         self._cluster()
-        if scoring_method is not None:
-            self.scoring_method()
+        if self.scoring_method is not None:
+            self.scoring_method(self)
