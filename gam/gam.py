@@ -79,6 +79,7 @@ class GAM:
         self.subpopulations = None
         self.subpopulation_sizes = None
         self.explanations = None
+        self.score = None
 
     def _read_local(self):
         """
@@ -206,4 +207,4 @@ class GAM:
             self.clustering_attributions = self.attributions
         self._cluster()
         if self.scoring_method is not None:
-            self.scoring_method(self)
+            self.score = self.scoring_method(self)
