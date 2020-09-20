@@ -5,6 +5,7 @@ Adaped from https://raw.githubusercontent.com/shenxudeu/K_Medoids/master/k_medoi
 TODO:
 - refactor and test components of implementation
 """
+import sys
 from copy import deepcopy
 
 import matplotlib.pyplot as plt
@@ -21,6 +22,124 @@ def _get_random_centers(n_clusters, n_samples):
         if _ not in init_ids:
             init_ids.append(_)
     return init_ids
+
+
+def _init_pam_build(X, n_clusters, dist_func):
+    """ PAM BUILD routine for intialization 
+        Greedy allocation of medoids.  1st medoid is most central point.
+        Second medoid decreases TD (total distance/dissimilarity) the most...
+        ...and on until you have found all k pts
+        Run time O(kn^2) 
+    """
+
+    n_samples = X.shape[0]
+    centers = np.zeros((n_clusters), dtype="int")
+    D = float("inf") * np.ones((n_samples, n_clusters))
+
+    # find 1st medoid - the most central point
+    td = float("inf")
+    for j in range(n_samples):
+        d = pairwise_distances(X, X[j, :].reshape(1, -1), metric=dist_func, n_jobs=-1)
+        tmp_td = np.sum(d)
+        #        print(j, tmp_td)
+        if tmp_td < td:
+            td = tmp_td
+            centers[0] = j
+            # print(D.shape, d.shape)
+            D[:, 0] = d[:, 0]
+    #            print("assigned 1-med tmp_td = ", j, tmp_td)
+    # print("assigned 1-med D = ", j, D)
+
+    # find remaining medoids
+    print("init centers - ", centers)
+    print("Finding other medoids - ")
+    for i in range(1, n_clusters):
+        d_nearest = np.partition(D, 0)[:, 0]
+        td = float("inf")
+        # available candidates
+        unselected_ids = np.arange(n_samples)
+        unselected_ids = np.delete(unselected_ids, centers[0:i])
+        for j in unselected_ids:
+            d = pairwise_distances(
+                X, X[j, :].reshape(1, -1), metric=dist_func, n_jobs=-1
+            ).squeeze()
+            tmp_delta = d - d_nearest
+            delta = np.where(tmp_delta > 0, 0, tmp_delta)  #
+            tmp_td = np.sum(delta)
+            #            print(j, d, d_nearest)
+            if tmp_td < td:
+                td = tmp_td
+                centers[i] = j
+    print("additional centers - ", centers)
+
+    return centers
+
+
+# def _naive_swap(X, centers, dist_func, max_iter, tol, verbose):
+def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
+    done = False
+    n_samples = X.shape[0]
+    n_clusters = len(centers)
+    current_iteration = 1
+
+    while not done and (current_iteration < max_iter):
+        d = pairwise_distances(X, X[centers, :], metric=dist_func, n_jobs=-1)
+        # cache nearest (D) and second nearest (E) distances to medoids
+        tmp = np.partition(d, 1)
+        D = tmp[:, 0]
+        E = tmp[:, 1]
+        #print(tmp.shape, D.shape, E.shape)
+        #print(centers)
+        # debugging test to check that D ≤ E
+        assert np.all(E - D >= 0)
+
+        Tih_min = float("inf")
+
+        done = True  # let's be optimistic we won't find a swap
+        for i in range(n_clusters):
+            d_ji = d[:, i]
+            unselected_ids = np.arange(n_samples)
+            unselected_ids = np.delete(unselected_ids, centers[0:i])
+            for h in unselected_ids:
+                d_jh = pairwise_distances(
+                    X, X[h, :].reshape(1, -1), metric=dist_func, n_jobs=-1
+                ).squeeze()
+                # how to vectorize this?
+                # calculate K_jih
+                K_jih = np.zeros_like(D)
+                # if d_ji > D:
+                # or equivalently d_ji - D > 0
+                #    Kjih = min(d(j, h) − Dj, 0)
+                diff_ji = d_ji - D
+                idx = np.where(diff_ji > 0)
+
+                # min doesn't work in a vector sense...
+                diff_jh = d_jh - D
+                # K_jih[idx] = min(diff_jh[idx], 0)
+                K_jih[idx] = np.minimum(diff_jh[idx], 0)
+
+                # if d_ji = Dj:
+                #    Kjih = min(d(j, h), Ej) − Dj
+                idx = np.where(diff_ji == 0)
+                K_jih[idx] = np.minimum(d_jh[idx], E[idx]) - D[idx]
+
+                Tih = np.sum(K_jih)
+
+                if Tih < Tih_min:
+                    Tih_min = Tih
+                    i_swap = i
+                    h_swap = h
+        # execute the swap
+        if Tih_min < 0:
+            done = False  # sorry we found a swap
+            centers[i_swap] = h_swap
+            if verbose:
+                print("Swapped - ", i_swap, h_swap, Tih_min)
+        # else:
+        # our best swap would degrade the clustering (min Tih > 0)
+        # we might need to finalize some calculations to match other methods
+        current_iteration = current_iteration + 1
+    return centers
 
 
 def _get_distance(data1, data2):
@@ -103,10 +222,13 @@ def _naive_swap(X, centers, dist_func, max_iter, tol, verbose):
         if not swapped:
             if verbose:
                 print("End Searching by no swaps")
+            # edge case - build found the medoids, so we need to finish up the calc...
+            members, costs, tot_cost, dist_mat = _get_cost(X, centers_, dist_func)
             break
         current_iteration += 1
         print("Starting Iteration: ", current_iteration)
-        return centers, members, costs, tot_cost, dist_mat
+
+    return centers, members, costs, tot_cost, dist_mat
 
 
 class KMedoids:
@@ -145,6 +267,7 @@ class KMedoids:
         tol=0.0001,
         init_medoids=None,
         swap_medoids=None,
+        verbose=True,
     ):
         self.n_clusters = n_clusters
         self.dist_func = dist_func
@@ -218,25 +341,32 @@ class KMedoids:
         n_samples, _ = X.shape
 
         # Get initial centers
-        if self.init_medoids:
-            init_ids = self.init_medoids
+        if self.init_medoids == "build":
+            init_ids = _init_pam_build(X, n_clusters, dist_func)
         else:
             init_ids = _get_random_centers(n_clusters, n_samples)
 
         if verbose:
             print("Initial centers are ", init_ids)
 
-        centers = init_ids
+        print("Debug - line 282 ", type(init_ids), init_ids)
+        init_ids = list(init_ids)
 
         # Find which swap method we are using
-        if self.swap_medoids:
-            raise NotImplementedError()
+        if self.swap_medoids == "stop":
+            print("Stop method was selected.  Exiting. clustering.py near line 251")
+            print(init_ids)
+            sys.exit()
+        #        elif self.swap_medoids:
+        #            raise NotImplementedError()
+        elif self.swap_medoids == "pam":
+            centers = _swap_pam(X, init_ids, dist_func, max_iter, tol, verbose)
+            members, costs, tot_cost, dist_mat = _get_cost(X, centers, dist_func)
+
         else:
             centers, members, costs, tot_cost, dist_mat = _naive_swap(
                 X, init_ids, dist_func, max_iter, tol, verbose
             )
-
-        # members, costs, tot_cost, dist_mat = _get_cost(X, init_ids, dist_func)
 
         return centers, members, costs, tot_cost, dist_mat
 
