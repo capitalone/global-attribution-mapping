@@ -5,6 +5,7 @@ Adaped from https://raw.githubusercontent.com/shenxudeu/K_Medoids/master/k_medoi
 TODO:
 - refactor and test components of implementation
 """
+import math
 import sys
 from copy import deepcopy
 
@@ -34,26 +35,11 @@ def _init_pam_build(X, n_clusters, dist_func):
 
     n_samples = X.shape[0]
     centers = np.zeros((n_clusters), dtype="int")
-    D = float("inf") * np.ones((n_samples, n_clusters))
+    D = np.zeros((n_samples, 1))  # will append columns as we need/find them
 
-    # find 1st medoid - the most central point
-    td = float("inf")
-    for j in range(n_samples):
-        d = pairwise_distances(X, X[j, :].reshape(1, -1), metric=dist_func, n_jobs=-1)
-        tmp_td = np.sum(d)
-        #        print(j, tmp_td)
-        if tmp_td < td:
-            td = tmp_td
-            centers[0] = j
-            # print(D.shape, d.shape)
-            D[:, 0] = d[:, 0]
-    #            print("assigned 1-med tmp_td = ", j, tmp_td)
-    # print("assigned 1-med D = ", j, D)
-
-    # find remaining medoids
-    print("init centers - ", centers)
-    print("Finding other medoids - ")
-    for i in range(1, n_clusters):
+    # find medoids
+    print("Initializing medoids - ")
+    for i in range(n_clusters):
         d_nearest = np.partition(D, 0)[:, 0]
         td = float("inf")
         # available candidates
@@ -70,7 +56,106 @@ def _init_pam_build(X, n_clusters, dist_func):
             if tmp_td < td:
                 td = tmp_td
                 centers[i] = j
-    print("additional centers - ", centers)
+                d_best = np.copy(d).reshape(-1, 1)
+        # update D with new medoid
+        # print(D.shape, d_best)
+        D = np.concatenate((D, d_best), axis=1)
+        print("updated centers - ", centers)
+
+    return centers
+
+
+def _init_bandit_build(X, n_clusters, dist_func):
+    """ BANDIT BUILD routine for intialization 
+        Recast as a stochastic estimation problem
+        Run time O(nlogn) 
+        https://arxiv.org/pdf/2006.06856.pdf
+        S_tar = X \ M_el , S_ref = X , and g() = g
+    """
+    n_samples = X.shape[0]
+    batchsize = 100
+    delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
+
+    n_used_ref = 0
+
+    centers = np.zeros((n_clusters), dtype="int")
+    D = np.zeros((n_samples, 1))  # will append columns as we need/find them
+
+    # initialize mu and sigma
+    mu_x = np.zeros((n_samples))
+    sigma_x = float("inf") * np.ones((n_samples))
+    C_x = np.zeros((n_samples))
+
+    # find medoids
+    print("Initializing medoids - ")
+    for i in range(n_clusters):
+        d_nearest = np.partition(D, 0)[:, 0]
+        # available candidates - S_tar - we draw samples from this population
+        unselected_ids = np.arange(n_samples)
+        unselected_ids = np.delete(unselected_ids, centers[0:i])
+        # solution candidates - S_tar
+        solution_ids = np.arange(n_samples)
+        solution_ids = np.delete(solution_ids, centers[0:i])
+        while (n_used_ref < n_samples) and (solution_ids.shape[0] > 1):
+            # sample a batch from S_ref (for init, S_ref = X)
+            idx_ref = np.random.choice(unselected_ids, size=batchsize, replace=True)
+            for j in solution_ids:
+                # look at distances from this point to a random subset (not whole set!)
+                d = pairwise_distances(
+                    X[idx_ref, :], X[j, :].reshape(1, -1), metric=dist_func, n_jobs=-1
+                ).squeeze()
+                tmp_delta = d - d_nearest[idx_ref]
+                g = np.where(tmp_delta > 0, 0, tmp_delta)  #
+                sigma_x[j] = np.std(g)
+                td = np.sum(g)
+                mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + batchsize)
+
+            C_x = sigma_x * (
+                math.sqrt((2 * math.log(1.0 / delta)) / (n_used_ref + batchsize))
+            )
+
+            # Remove pts that cannot be a solution
+            idx = np.argmin(mu_x)
+            mu_y = mu_x[idx]
+            sigma_y = sigma_x[idx]
+            C_y = sigma_y * (
+                math.sqrt((2 * math.log(1.0 / delta)) / (n_used_ref + batchsize))
+            )
+            # check if LCB of target is > UCB of current best
+            lcb_target = mu_x - C_x
+            ucb_best = mu_y + C_y
+            # print("debug mu, sigma - ", idx, mu_y, sigma_y)
+            # print("debug shorten list of solutions - ", solution_ids)
+            # print("debug shorten list of solutions - ", lcb_target.shape)
+            solution_ids = np.where(lcb_target <= ucb_best)[0]
+            # solution_ids = solution_ids[idx]
+
+            n_used_ref = n_used_ref + batchsize
+        #
+        # so we have reduced the playing field to 1 or multiple candidates
+        #
+        # print(" debug - after loop with solution_ids - ", solution_ids.shape[0])
+        if solution_ids.shape[0] == 1:
+            # save the single sample as a medoid (either keep index, or find index of sample)
+            centers[i] = solution_ids  # probably a type error
+        else:  # this is fastPam build - but with far fewer pts to evaluate
+            # we have more than one candidate - so lets check which one is best
+            td = float("inf")
+            for j in solution_ids:
+                d = pairwise_distances(
+                    X, X[j, :].reshape(1, -1), metric=dist_func, n_jobs=-1
+                ).squeeze()
+                tmp_delta = d - d_nearest
+                g = np.where(tmp_delta > 0, 0, tmp_delta)  #
+                tmp_td = np.sum(g)
+                #            print(j, d, d_nearest)
+                if tmp_td < td:
+                    td = tmp_td
+                    centers[i] = j
+                    d_best = np.copy(d).reshape(-1, 1)
+            #        print("during final search - updated with - ", i, j, td)
+        D = np.concatenate((D, d_best), axis=1)
+        print("updated centers - ", centers)
 
     return centers
 
@@ -88,8 +173,8 @@ def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
         tmp = np.partition(d, 1)
         D = tmp[:, 0]
         E = tmp[:, 1]
-        #print(tmp.shape, D.shape, E.shape)
-        #print(centers)
+        # print(tmp.shape, D.shape, E.shape)
+        # print(centers)
         # debugging test to check that D ≤ E
         assert np.all(E - D >= 0)
 
@@ -343,13 +428,14 @@ class KMedoids:
         # Get initial centers
         if self.init_medoids == "build":
             init_ids = _init_pam_build(X, n_clusters, dist_func)
+        elif self.init_medoids == "bandit":
+            init_ids = _init_bandit_build(X, n_clusters, dist_func)
         else:
             init_ids = _get_random_centers(n_clusters, n_samples)
 
         if verbose:
             print("Initial centers are ", init_ids)
 
-        print("Debug - line 282 ", type(init_ids), init_ids)
         init_ids = list(init_ids)
 
         # Find which swap method we are using
