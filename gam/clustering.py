@@ -7,6 +7,7 @@ TODO:
 """
 import math
 import sys
+import time
 from copy import deepcopy
 
 import matplotlib.pyplot as plt
@@ -76,26 +77,23 @@ def _init_bandit_build(X, n_clusters, dist_func):
     batchsize = 100
     delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
 
-    n_used_ref = 0
-
     centers = np.zeros((n_clusters), dtype="int")
     D = np.zeros((n_samples, 1))  # will append columns as we need/find them
-
-    # initialize mu and sigma
-    mu_x = np.zeros((n_samples))
-    sigma_x = float("inf") * np.ones((n_samples))
-    C_x = np.zeros((n_samples))
 
     # find medoids
     print("Initializing medoids - ")
     for i in range(n_clusters):
+        # initialize mu and sigma
+        mu_x = np.zeros((n_samples))
+        sigma_x = float("inf") * np.ones((n_samples))
+        C_x = np.zeros((n_samples))
         d_nearest = np.partition(D, 0)[:, 0]
         # available candidates - S_tar - we draw samples from this population
         unselected_ids = np.arange(n_samples)
         unselected_ids = np.delete(unselected_ids, centers[0:i])
-        # solution candidates - S_tar
-        solution_ids = np.arange(n_samples)
-        solution_ids = np.delete(solution_ids, centers[0:i])
+        # solution candidates - S_solution
+        solution_ids = np.copy(unselected_ids)
+        n_used_ref = 0
         while (n_used_ref < n_samples) and (solution_ids.shape[0] > 1):
             # sample a batch from S_ref (for init, S_ref = X)
             idx_ref = np.random.choice(unselected_ids, size=batchsize, replace=True)
@@ -124,17 +122,27 @@ def _init_bandit_build(X, n_clusters, dist_func):
             # check if LCB of target is > UCB of current best
             lcb_target = mu_x - C_x
             ucb_best = mu_y + C_y
+
             # print("debug mu, sigma - ", idx, mu_y, sigma_y)
             # print("debug shorten list of solutions - ", solution_ids)
             # print("debug shorten list of solutions - ", lcb_target.shape)
             solution_ids = np.where(lcb_target <= ucb_best)[0]
-            # solution_ids = solution_ids[idx]
+
+            # fix for re-introduction of centers to solutions...?
+            # solution_ids = np.delete(solution_ids, np.where(solution_ids in centers))
+
+            # print(
+            #    f"\t Number of candidates - {solution_ids.shape[0]} , {mu_y:.2f}, {C_y:.2f}, {ucb_best:.2f}"
+            #            )
+            # print("\t candidates - ", solution_ids)
+            #            if i == 1:
+            #                print("i==1", solution_ids)
+            #                sys.exit()
 
             n_used_ref = n_used_ref + batchsize
         #
         # so we have reduced the playing field to 1 or multiple candidates
         #
-        # print(" debug - after loop with solution_ids - ", solution_ids.shape[0])
         if solution_ids.shape[0] == 1:
             # save the single sample as a medoid (either keep index, or find index of sample)
             centers[i] = solution_ids  # probably a type error
@@ -155,7 +163,7 @@ def _init_bandit_build(X, n_clusters, dist_func):
                     d_best = np.copy(d).reshape(-1, 1)
             #        print("during final search - updated with - ", i, j, td)
         D = np.concatenate((D, d_best), axis=1)
-        print("updated centers - ", centers)
+        print("\t updated centers - ", centers)
 
     return centers
 
@@ -426,15 +434,19 @@ class KMedoids:
         n_samples, _ = X.shape
 
         # Get initial centers
+        init_start = time.time()
         if self.init_medoids == "build":
             init_ids = _init_pam_build(X, n_clusters, dist_func)
         elif self.init_medoids == "bandit":
             init_ids = _init_bandit_build(X, n_clusters, dist_func)
         else:
             init_ids = _get_random_centers(n_clusters, n_samples)
+        init_end = time.time()
+        init_elapsed = init_end - init_start
 
         if verbose:
             print("Initial centers are ", init_ids)
+            print(f"Finished in {init_elapsed} sec.")
 
         init_ids = list(init_ids)
 
