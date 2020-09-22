@@ -128,17 +128,6 @@ def _init_bandit_build(X, n_clusters, dist_func):
             # print("debug shorten list of solutions - ", lcb_target.shape)
             solution_ids = np.where(lcb_target <= ucb_best)[0]
 
-            # fix for re-introduction of centers to solutions...?
-            # solution_ids = np.delete(solution_ids, np.where(solution_ids in centers))
-
-            # print(
-            #    f"\t Number of candidates - {solution_ids.shape[0]} , {mu_y:.2f}, {C_y:.2f}, {ucb_best:.2f}"
-            #            )
-            # print("\t candidates - ", solution_ids)
-            #            if i == 1:
-            #                print("i==1", solution_ids)
-            #                sys.exit()
-
             n_used_ref = n_used_ref + batchsize
         #
         # so we have reduced the playing field to 1 or multiple candidates
@@ -146,7 +135,7 @@ def _init_bandit_build(X, n_clusters, dist_func):
         if solution_ids.shape[0] == 1:
             # save the single sample as a medoid (either keep index, or find index of sample)
             centers[i] = solution_ids  # probably a type error
-        else:  # this is fastPam build - but with far fewer pts to evaluate
+        else:  # this is fastPam build - with far fewer pts to evaluate
             # we have more than one candidate - so lets check which one is best
             td = float("inf")
             for j in solution_ids:
@@ -168,7 +157,149 @@ def _init_bandit_build(X, n_clusters, dist_func):
     return centers
 
 
-# def _naive_swap(X, centers, dist_func, max_iter, tol, verbose):
+def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
+    """ BANDIT SWAP - improve medoids after initialization
+        Recast as a stochastic estimation problem
+        Run time O(nlogn) 
+        https://arxiv.org/pdf/2006.06856.pdf
+        S_tar = M x (X \ M) , S_ref = X , and g() = K_jih
+    """
+    done = False
+    n_samples = X.shape[0]
+    n_clusters = len(centers)
+    current_iteration = 1
+
+    batchsize = 100
+    delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
+
+    while not done and (current_iteration < max_iter):
+        # initialize mu and sigma
+        mu_x = np.zeros((n_samples))
+        sigma_x = float("inf") * np.ones((n_samples))
+        C_x = np.zeros((n_samples))
+
+        d = pairwise_distances(X, X[centers, :], metric=dist_func, n_jobs=-1)
+        # cache nearest (D) and second nearest (E) distances to medoids
+        tmp = np.partition(d, 1)
+        D = tmp[:, 0]
+        E = tmp[:, 1]
+
+        # debugging test to check that D ≤ E
+        # assert np.all(E - D >= 0)
+
+        Tih_min = float("inf")
+
+        done = True  # let's be optimistic we won't find a swap
+        for i in range(n_clusters):
+            d_ji = d[:, i]
+            unselected_ids = np.arange(n_samples)
+            unselected_ids = np.delete(unselected_ids, centers[0:i])
+
+            # solution candidates - S_solution
+            solution_ids = np.copy(unselected_ids)
+            n_used_ref = 0
+            while (n_used_ref < n_samples) and (solution_ids.shape[0] > 1):
+                # sample a batch from S_ref (for init, S_ref = X)
+                idx_ref = np.random.choice(unselected_ids, size=batchsize, replace=True)
+
+                for h in solution_ids:
+                    # distances from candidate medoid to ref pts
+                    d_jh = pairwise_distances(
+                        X[idx_ref, :],
+                        X[h, :].reshape(1, -1),
+                        metric=dist_func,
+                        n_jobs=-1,
+                    ).squeeze()
+
+                    # calculate K_jih
+                    K_jih = np.zeros_like(D)
+                    diff_ji = d_ji[idx_ref] - D[idx_ref]
+                    idx = np.where(diff_ji > 0)
+
+                    diff_jh = d_jh - D[idx_ref]
+                    K_jih[idx] = np.minimum(diff_jh[idx], 0)
+
+                    idx = np.where(diff_ji == 0)
+                    K_jih[idx] = np.minimum(d_jh[idx], E[idx]) - D[idx]
+
+                    sigma_x[h] = np.std(
+                        K_jih
+                    )  # Q: size of K_jih?  should be solution_ids?
+                    Tih = np.sum(K_jih)
+                    mu_x[h] = ((n_used_ref * mu_x[h]) + Tih) / (n_used_ref + batchsize)
+
+                C_x = sigma_x * (
+                    math.sqrt((2 * math.log(1.0 / delta)) / (n_used_ref + batchsize))
+                )
+
+                # Remove pts that cannot be a solution
+                idx = np.argmin(mu_x)
+                mu_y = mu_x[idx]
+                sigma_y = sigma_x[idx]
+                C_y = sigma_y * (
+                    math.sqrt((2 * math.log(1.0 / delta)) / (n_used_ref + batchsize))
+                )
+                # check if LCB of target is > UCB of current best
+                lcb_target = mu_x - C_x
+                ucb_best = mu_y + C_y
+
+                # print("debug mu, sigma - ", idx, mu_y, sigma_y)
+                # print("debug shorten list of solutions - ", solution_ids)
+                # print("debug shorten list of solutions - ", lcb_target.shape)
+                solution_ids = np.where(lcb_target <= ucb_best)[0]
+
+                n_used_ref = n_used_ref + batchsize
+        #
+        # with reduced number of candidates - run PAM swap
+        #
+        print(f"Entering swap with {solution_ids.shape[0]} candidates...")
+        print(solution_ids)
+        Tih_min = float("inf")
+
+        done = True  # let's be optimistic we won't find a swap
+        for i in range(n_clusters):
+            d_ji = d[:, i]
+            for h in solution_ids:
+                d_jh = pairwise_distances(
+                    X, X[h, :].reshape(1, -1), metric=dist_func, n_jobs=-1
+                ).squeeze()
+
+                # calculate K_jih
+                K_jih = np.zeros_like(D)
+                # if d_ji > D:
+                #    Kjih = min(d(j, h) − Dj, 0)
+                diff_ji = d_ji - D
+                idx = np.where(diff_ji > 0)
+
+                # K_jih[idx] = min(diff_jh[idx], 0)
+                diff_jh = d_jh - D
+                K_jih[idx] = np.minimum(diff_jh[idx], 0)
+
+                # if d_ji = Dj:
+                #    Kjih = min(d(j, h), Ej) − Dj
+                idx = np.where(diff_ji == 0)
+                K_jih[idx] = np.minimum(d_jh[idx], E[idx]) - D[idx]
+
+                Tih = np.sum(K_jih)
+
+                if Tih < Tih_min:
+                    Tih_min = Tih
+                    i_swap = i
+                    h_swap = h
+        # execute the swap
+        if Tih_min < 0:
+            if verbose:
+                print("\tSwapped - ", centers[i_swap], h_swap, Tih_min)
+            done = False  # sorry we found a swap
+            centers[i_swap] = h_swap
+        else:
+            done = True
+            print("\tNO Swap - ", i_swap, h_swap, Tih_min)
+        # our best swap would degrade the clustering (min Tih > 0)
+        current_iteration = current_iteration + 1
+    return centers
+
+
 def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
     done = False
     n_samples = X.shape[0]
@@ -181,10 +312,9 @@ def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
         tmp = np.partition(d, 1)
         D = tmp[:, 0]
         E = tmp[:, 1]
-        # print(tmp.shape, D.shape, E.shape)
-        # print(centers)
+
         # debugging test to check that D ≤ E
-        assert np.all(E - D >= 0)
+        # assert np.all(E - D >= 0)
 
         Tih_min = float("inf")
 
@@ -197,18 +327,16 @@ def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
                 d_jh = pairwise_distances(
                     X, X[h, :].reshape(1, -1), metric=dist_func, n_jobs=-1
                 ).squeeze()
-                # how to vectorize this?
+
                 # calculate K_jih
                 K_jih = np.zeros_like(D)
                 # if d_ji > D:
-                # or equivalently d_ji - D > 0
                 #    Kjih = min(d(j, h) − Dj, 0)
                 diff_ji = d_ji - D
                 idx = np.where(diff_ji > 0)
 
-                # min doesn't work in a vector sense...
-                diff_jh = d_jh - D
                 # K_jih[idx] = min(diff_jh[idx], 0)
+                diff_jh = d_jh - D
                 K_jih[idx] = np.minimum(diff_jh[idx], 0)
 
                 # if d_ji = Dj:
@@ -228,9 +356,9 @@ def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
             centers[i_swap] = h_swap
             if verbose:
                 print("Swapped - ", i_swap, h_swap, Tih_min)
-        # else:
+        else:
+            done = True
         # our best swap would degrade the clustering (min Tih > 0)
-        # we might need to finalize some calculations to match other methods
         current_iteration = current_iteration + 1
     return centers
 
@@ -446,7 +574,7 @@ class KMedoids:
 
         if verbose:
             print("Initial centers are ", init_ids)
-            print(f"Finished in {init_elapsed} sec.")
+            print(f"Finished init  {init_elapsed} sec.")
 
         init_ids = list(init_ids)
 
@@ -457,14 +585,20 @@ class KMedoids:
             sys.exit()
         #        elif self.swap_medoids:
         #            raise NotImplementedError()
+        elif self.swap_medoids == "bandit":
+            centers = _swap_bandit(X, init_ids, dist_func, max_iter, tol, verbose)
+            members, costs, tot_cost, dist_mat = _get_cost(X, centers, dist_func)
         elif self.swap_medoids == "pam":
             centers = _swap_pam(X, init_ids, dist_func, max_iter, tol, verbose)
             members, costs, tot_cost, dist_mat = _get_cost(X, centers, dist_func)
-
         else:
             centers, members, costs, tot_cost, dist_mat = _naive_swap(
                 X, init_ids, dist_func, max_iter, tol, verbose
             )
+        swap_end = time.time()
+        if verbose:
+            swap_elapsed = swap_end - init_end
+            print(f"Finished swap  {swap_elapsed} sec.")
 
         return centers, members, costs, tot_cost, dist_mat
 
