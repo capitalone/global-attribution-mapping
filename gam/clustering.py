@@ -173,10 +173,6 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
     delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
 
     while not done and (current_iteration < max_iter):
-        # initialize mu and sigma
-        mu_x = np.zeros((n_samples))
-        sigma_x = float("inf") * np.ones((n_samples))
-        C_x = np.zeros((n_samples))
 
         d = pairwise_distances(X, X[centers, :], metric=dist_func, n_jobs=-1)
         # cache nearest (D) and second nearest (E) distances to medoids
@@ -191,9 +187,14 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
 
         done = True  # let's be optimistic we won't find a swap
         for i in range(n_clusters):
+            # initialize mu and sigma
+            mu_x = np.zeros((n_samples))
+            sigma_x = float("inf") * np.ones((n_samples))
+            C_x = np.zeros((n_samples))
             d_ji = d[:, i]
             unselected_ids = np.arange(n_samples)
-            unselected_ids = np.delete(unselected_ids, centers[0:i])
+            # unselected_ids = np.delete(unselected_ids, centers[0:i])
+            unselected_ids = np.delete(unselected_ids, centers)
 
             # solution candidates - S_solution
             solution_ids = np.copy(unselected_ids)
