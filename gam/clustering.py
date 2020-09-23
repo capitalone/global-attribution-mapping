@@ -159,6 +159,7 @@ def _init_bandit_build(X, n_clusters, dist_func):
 
 def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
     from itertools import product
+
     """ BANDIT SWAP - improve medoids after initialization
         Recast as a stochastic estimation problem
         Run time O(nlogn)
@@ -173,12 +174,12 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
     batchsize = 100
     delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
 
-    # initialize mu and sigma
-    mu_x = np.zeros((n_samples, n_clusters))
-    sigma_x = float("inf") * np.ones((n_samples, n_clusters))
-    C_x = np.zeros((n_samples, n_clusters))
-
     while not done and (current_iteration < max_iter):
+
+        # initialize mu and sigma
+        mu_x = np.zeros((n_samples, n_clusters))
+        sigma_x = float("inf") * np.ones((n_samples, n_clusters))
+        C_x = np.zeros((n_samples, n_clusters))
 
         Tih_min = float("inf")
         done = True  # let's be optimistic we won't find a swap
@@ -188,14 +189,14 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
         D = tmp[:, 0]
         E = tmp[:, 1]
 
-
         unselected_ids = np.arange(n_samples)
         # unselected_ids = np.delete(unselected_ids, centers[0:i])
         unselected_ids = np.delete(unselected_ids, centers)
 
         # this needs to be the product of k x unselected_ids
-        swap_pairs = np.array(list(product(unselected_ids, range(n_clusters))), dtype='int')
-        #print('debug - ', swap_pairs.shape, swap_pairs[2783])
+        swap_pairs = np.array(
+            list(product(unselected_ids, range(n_clusters))), dtype="int"
+        )
 
         n_used_ref = 0
         while (n_used_ref < n_samples) and (swap_pairs.shape[0] > 1):
@@ -209,10 +210,16 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
                 d_ji = d[:, i]
 
                 # distances from candidate medoid to ref pts
-                d_jh = cdist(X[idx_ref, :], X[h, :].reshape(1, -1), metric=dist_func,).squeeze()
+                d_jh = pairwise_distances(
+                    X[idx_ref, :], X[h, :].reshape(1, -1), metric=dist_func
+                ).squeeze()
+                # d_jh = cdist(
+                #    X[idx_ref, :], X[h, :].reshape(1, -1), metric=dist_func
+                # ).squeeze()
 
                 # calculate K_jih
-                K_jih = np.zeros_like(D)
+                # K_jih = np.zeros_like(D)
+                K_jih = np.zeros(batchsize)
                 diff_ji = d_ji[idx_ref] - D[idx_ref]
                 idx = np.where(diff_ji > 0)
 
@@ -224,14 +231,18 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
 
                 sigma_x[h, i] = np.std(K_jih)
                 Tih = np.sum(K_jih)
-                mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + Tih) / (n_used_ref + batchsize)
+                mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + Tih) / (
+                    n_used_ref + batchsize
+                )
 
             # downseslect mu and sigma to match candidate pairs
-            print('debug unravel - ', swap_pairs.shape)
-            flat_indices = np.ravel_multi_index((swap_pairs[:, 0], swap_pairs[:, 1]), (n_samples, n_clusters))
+            # print("debug unravel - ", swap_pairs.shape)
+            flat_indices = np.ravel_multi_index(
+                (swap_pairs[:, 0], swap_pairs[:, 1]), (n_samples, n_clusters)
+            )
             tmp_mu = mu_x.flatten()[flat_indices]
             tmp_sigma = sigma_x.flatten()[flat_indices]
-            print('shrunken mu - ', tmp_mu.shape)
+            # print("shrunken mu - ", tmp_mu.shape)
 
             C_x = tmp_sigma * (
                 math.sqrt((2 * math.log(1.0 / delta)) / (n_used_ref + batchsize))
@@ -239,10 +250,10 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
 
             # Remove pts that cannot be a solution - don't make the cut in terms of potential reward
             idx = np.argmin(tmp_mu)
-            idx_2d = np.unravel_index(idx, (n_samples, n_clusters))
-            print(f'argmin returned idx = {idx} - which maps back to {idx_2d}')
-            #mu_y = mu_x.flatten()[idx]
-            sigma_y = sigma_x.flatten()[idx]
+            # idx_2d = np.unravel_index(idx, (n_samples, n_clusters))
+            # print(f"argmin returned idx = {idx} - {swap_pairs[idx]}")
+            # mu_y = mu_x.flatten()[idx]
+            # sigma_y = sigma_x.flatten()[idx]
             mu_y = tmp_mu[idx]
             sigma_y = tmp_sigma[idx]
             C_y = sigma_y * (
@@ -251,47 +262,34 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
             # check if LCB of target is <= UCB of current best
             lcb_target = tmp_mu - C_x
             ucb_best = mu_y + C_y
-            #print('lcb_target - ', lcb_target.shape)
-            #print('mu_y - ', mu_y)
-            #print('sigma_y - ', sigma_y)
-            #print('ucb_best - ', ucb_best)
+            # print("mu_y - ", mu_y)
+            # print("sigma_y - ", sigma_y)
+            # print("ucb_best - ", ucb_best)
+            # print("lcb_target - ", lcb_target.shape, lcb_target.min())
 
             # print("debug mu, sigma - ", idx, mu_y, sigma_y)
             # print("debug shorten list of solutions - ", solution_ids)
             # print("debug shorten list of solutions - ", lcb_target.shape)
-            #tmp_ids = np.where(lcb_target.flatten() <= ucb_best)[0]
+
             tmp_ids = np.where(lcb_target <= ucb_best)[0]
             swap_pairs = swap_pairs[tmp_ids]
-            print('prelim solution_ids - ', tmp_ids)
-
-
-            # unravel from flattened back to original to recover tuple of (cluster, sample)
-            #solution_ids, idx_cluster = np.unravel_index(tmp_ids, (n_samples, n_clusters))
-
-            # KLUDGE - mask out centers - otherwise we keep selecting the 1st (best) medoid
-            #mask = np.isin(solution_ids, centers)
-            #solution_ids = solution_ids[~mask]
-            #idx_cluster = idx_cluster[~mask]
-
-            print('indices  - ', tmp_ids)
-            print('pairs to sample - ')
-            print(swap_pairs.T)
+            print("\tremaining candidates - ", tmp_ids.shape[0])  # , tmp_ids)
 
             n_used_ref = n_used_ref + batchsize
         #
         # with reduced number of candidates - run PAM swap
         #
         print(f"Entering swap with {swap_pairs.shape[0]} candidates...")
-        print(swap_pairs)
+        print(swap_pairs.T)
         Tih_min = float("inf")
 
         done = True  # let's be optimistic we won't find a swap
-        #for i in range(n_clusters):
+        # for i in range(n_clusters):
         for a_swap in swap_pairs:
             h = a_swap[0]
             i = a_swap[1]
             d_ji = d[:, i]
-            #for h in solution_ids:
+            # for h in solution_ids:
             d_jh = pairwise_distances(
                 X, X[h, :].reshape(1, -1), metric=dist_func, n_jobs=-1
             ).squeeze()
@@ -324,7 +322,7 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
                 print("\tSwapped - ", centers[i_swap], h_swap, Tih_min)
             done = False  # sorry we found a swap
             centers[i_swap] = h_swap
-            print('Centers after swap - ', centers)
+            print("Centers after swap - ", centers)
         else:
             done = True
             print("\tNO Swap - ", i_swap, h_swap, Tih_min)
@@ -601,7 +599,8 @@ class KMedoids:
         elif self.init_medoids == "bandit":
             init_ids = _init_bandit_build(X, n_clusters, dist_func)
         else:
-            init_ids = _get_random_centers(n_clusters, n_samples)
+            # init_ids = _get_random_centers(n_clusters, n_samples)
+            init_ids = [81, 593, 193, 22]
         init_end = time.time()
         init_elapsed = init_end - init_start
 
