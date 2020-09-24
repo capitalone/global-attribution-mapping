@@ -135,10 +135,13 @@ def _init_bandit_build(X, n_clusters, dist_func):
         #
         # so we have reduced the playing field to 1 or multiple candidates
         #
+        if verbose:
+            print(" Final eval with candidate = {solution_ids.shape[0]}")
         if solution_ids.shape[0] == 1:
             # save the single sample as a medoid (either keep index, or find index of sample)
-            print("debugging with 1 candidate - ", solution_ids)
             centers[i] = solution_ids  # probably a type error
+            d = cdist(X, X[solution_ids, :].reshape(1, -1), metric=dist_func).squeeze()
+            d_best = np.copy(d).reshape(-1, 1)
         else:  # this is fastPam build - with far fewer pts to evaluate
             # we have more than one candidate - so lets check which one is best
             td = float("inf")
