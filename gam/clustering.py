@@ -99,8 +99,11 @@ def _init_bandit_build(X, n_clusters, dist_func):
             idx_ref = np.random.choice(unselected_ids, size=batchsize, replace=True)
             for j in solution_ids:
                 # look at distances from this point to a random subset (not whole set!)
-                d = pairwise_distances(
-                    X[idx_ref, :], X[j, :].reshape(1, -1), metric=dist_func, n_jobs=-1
+                # d = pairwise_distances(
+                #    X[idx_ref, :], X[j, :].reshape(1, -1), metric=dist_func, n_jobs=-1
+                # ).squeeze()
+                d = cdist(
+                    X[idx_ref, :], X[j, :].reshape(1, -1), metric=dist_func
                 ).squeeze()
                 tmp_delta = d - d_nearest[idx_ref]
                 g = np.where(tmp_delta > 0, 0, tmp_delta)  #
@@ -134,14 +137,16 @@ def _init_bandit_build(X, n_clusters, dist_func):
         #
         if solution_ids.shape[0] == 1:
             # save the single sample as a medoid (either keep index, or find index of sample)
+            print("debugging with 1 candidate - ", solution_ids)
             centers[i] = solution_ids  # probably a type error
         else:  # this is fastPam build - with far fewer pts to evaluate
             # we have more than one candidate - so lets check which one is best
             td = float("inf")
             for j in solution_ids:
-                d = pairwise_distances(
-                    X, X[j, :].reshape(1, -1), metric=dist_func, n_jobs=-1
-                ).squeeze()
+                # d = pairwise_distances(
+                #    X, X[j, :].reshape(1, -1), metric=dist_func, n_jobs=-1
+                # ).squeeze()
+                d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
                 tmp_delta = d - d_nearest
                 g = np.where(tmp_delta > 0, 0, tmp_delta)  #
                 tmp_td = np.sum(g)
@@ -210,12 +215,12 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
                 d_ji = d[:, i]
 
                 # distances from candidate medoid to ref pts
-                d_jh = pairwise_distances(
-                    X[idx_ref, :], X[h, :].reshape(1, -1), metric=dist_func
-                ).squeeze()
-                # d_jh = cdist(
+                # d_jh = pairwise_distances(
                 #    X[idx_ref, :], X[h, :].reshape(1, -1), metric=dist_func
                 # ).squeeze()
+                d_jh = cdist(
+                    X[idx_ref, :], X[h, :].reshape(1, -1), metric=dist_func
+                ).squeeze()
 
                 # calculate K_jih
                 # K_jih = np.zeros_like(D)
@@ -290,9 +295,10 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
             i = a_swap[1]
             d_ji = d[:, i]
             # for h in solution_ids:
-            d_jh = pairwise_distances(
-                X, X[h, :].reshape(1, -1), metric=dist_func, n_jobs=-1
-            ).squeeze()
+            # d_jh = pairwise_distances(
+            #    X, X[h, :].reshape(1, -1), metric=dist_func, n_jobs=-1
+            # ).squeeze()
+            d_jh = cdist(X, X[h, :].reshape(1, -1), metric=dist_func).squeeze()
 
             # calculate K_jih
             K_jih = np.zeros_like(D)
