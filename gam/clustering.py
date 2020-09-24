@@ -66,7 +66,7 @@ def _init_pam_build(X, n_clusters, dist_func):
     return centers
 
 
-def _init_bandit_build(X, n_clusters, dist_func):
+def _init_bandit_build(X, n_clusters, dist_func, verbose):
     """ BANDIT BUILD routine for intialization
         Recast as a stochastic estimation problem
         Run time O(nlogn)
@@ -606,7 +606,7 @@ class KMedoids:
         if self.init_medoids == "build":
             init_ids = _init_pam_build(X, n_clusters, dist_func)
         elif self.init_medoids == "bandit":
-            init_ids = _init_bandit_build(X, n_clusters, dist_func)
+            init_ids = _init_bandit_build(X, n_clusters, dist_func, verbose)
         else:
             # init_ids = _get_random_centers(n_clusters, n_samples)
             init_ids = [81, 593, 193, 22]
