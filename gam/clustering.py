@@ -136,7 +136,7 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
         # so we have reduced the playing field to 1 or multiple candidates
         #
         if verbose:
-            print(" Final eval with candidate = {solution_ids.shape[0]}")
+            print(f"Final eval with candidate = {solution_ids.shape[0]}")
         if solution_ids.shape[0] == 1:
             # save the single sample as a medoid (either keep index, or find index of sample)
             centers[i] = solution_ids  # probably a type error
