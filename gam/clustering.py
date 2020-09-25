@@ -16,6 +16,15 @@ from scipy.spatial.distance import cdist, pdist, squareform
 from sklearn.metrics import pairwise_distances
 
 
+def _update_sigma(mu_old, mu_new, sigma, g, n_used_ref, batchsize):
+    t1 = n_used_ref * sigma
+    t2 = (mu_old - mu_new) ** 2
+    t3 = batchsize * np.std(g)
+    den = n_used_ref + batchsize
+    sigma = np.sqrt((t1 + t3) / den + t2)
+    return sigma
+
+
 def _get_random_centers(n_clusters, n_samples):
     """Return random points as initial centers"""
     init_ids = []
@@ -85,8 +94,11 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
     for i in range(n_clusters):
         # initialize mu and sigma
         mu_x = np.zeros((n_samples))
-        sigma_x = float("inf") * np.ones((n_samples))
+        # sigma_x = float("inf") * np.ones((n_samples))
+        # sigma_x = 1e3 * np.ones((n_samples))
+        sigma_x = np.zeros((n_samples))
         C_x = np.zeros((n_samples))
+
         d_nearest = np.partition(D, 0)[:, 0]
         # available candidates - S_tar - we draw samples from this population
         unselected_ids = np.arange(n_samples)
@@ -97,6 +109,7 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
         while (n_used_ref < n_samples) and (solution_ids.shape[0] > 1):
             # sample a batch from S_ref (for init, S_ref = X)
             idx_ref = np.random.choice(unselected_ids, size=batchsize, replace=True)
+            ci_scale = math.sqrt((2 * math.log(1.0 / delta)) / (n_used_ref + batchsize))
             for j in solution_ids:
                 # look at distances from this point to a random subset (not whole set!)
                 # d = pairwise_distances(
@@ -107,13 +120,17 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
                 ).squeeze()
                 tmp_delta = d - d_nearest[idx_ref]
                 g = np.where(tmp_delta > 0, 0, tmp_delta)  #
-                sigma_x[j] = np.std(g)
+
+                mu_old = mu_x[j]
                 td = np.sum(g)
                 mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + batchsize)
 
-            C_x = sigma_x * (
-                math.sqrt((2 * math.log(1.0 / delta)) / (n_used_ref + batchsize))
-            )
+                # sigma_x[j] = np.std(g)
+                sigma_x[j] = _update_sigma(
+                    mu_old, mu_x[j], sigma_x[j], g, n_used_ref, batchsize
+                )
+
+            C_x = ci_scale * sigma_x
 
             # Remove pts that cannot be a solution
             idx = np.argmin(mu_x)
@@ -136,7 +153,9 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
         # so we have reduced the playing field to 1 or multiple candidates
         #
         if verbose:
-            print(" Final eval with candidate = {solution_ids.shape[0]}")
+            print(
+                f"Final eval with candidate = {solution_ids.shape[0]} , pts used = {n_used_ref}"
+            )
         if solution_ids.shape[0] == 1:
             # save the single sample as a medoid (either keep index, or find index of sample)
             centers[i] = solution_ids  # probably a type error
@@ -186,7 +205,8 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
 
         # initialize mu and sigma
         mu_x = np.zeros((n_samples, n_clusters))
-        sigma_x = float("inf") * np.ones((n_samples, n_clusters))
+        # sigma_x = float("inf") * np.ones((n_samples, n_clusters))
+        sigma_x = np.zeros((n_samples, n_clusters))
         C_x = np.zeros((n_samples, n_clusters))
 
         Tih_min = float("inf")
@@ -198,7 +218,6 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
         E = tmp[:, 1]
 
         unselected_ids = np.arange(n_samples)
-        # unselected_ids = np.delete(unselected_ids, centers[0:i])
         unselected_ids = np.delete(unselected_ids, centers)
 
         # this needs to be the product of k x unselected_ids
@@ -237,11 +256,24 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
                 idx = np.where(diff_ji == 0)
                 K_jih[idx] = np.minimum(d_jh[idx], E[idx]) - D[idx]
 
-                sigma_x[h, i] = np.std(K_jih)
                 Tih = np.sum(K_jih)
+                mu_old = mu_x[h, i]
                 mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + Tih) / (
                     n_used_ref + batchsize
                 )
+
+                # sigma_x[h, i] = np.std(K_jih)
+
+                sigma_x[h, i] = _update_sigma(
+                    mu_old, mu_x[h, i], sigma_x[h, i], K_jih, n_used_ref, batchsize
+                )
+
+                # close but I think the scaling of batchsize is off...
+                # t1 = n_used_ref * sigma_x[h, i]
+                # t2 = (mu_old - mu_x[h, i]) ** 2
+                # t3 = batchsize * np.std(K_jih)
+                # den = n_used_ref + batchsize
+                # sigma_x[h, i] = np.sqrt((t1 + t3) / den + t2)
 
             # downseslect mu and sigma to match candidate pairs
             # print("debug unravel - ", swap_pairs.shape)
@@ -272,7 +304,7 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
             ucb_best = mu_y + C_y
             # print("mu_y - ", mu_y)
             # print("sigma_y - ", sigma_y)
-            # print("ucb_best - ", ucb_best)
+            print(f"ucb_best -  {ucb_best:.2f}, {mu_y:.2f}, {sigma_y:.2f}, {C_y:.2f}")
             # print("lcb_target - ", lcb_target.shape, lcb_target.min())
 
             # print("debug mu, sigma - ", idx, mu_y, sigma_y)
@@ -287,8 +319,10 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
         #
         # with reduced number of candidates - run PAM swap
         #
-        print(f"Entering swap with {swap_pairs.shape[0]} candidates...")
-        print(swap_pairs.T)
+        print(
+            f"Entering swap with {swap_pairs.shape[0]} candidates...pts used = {n_used_ref}"
+        )
+        # print(swap_pairs.T)
         Tih_min = float("inf")
 
         done = True  # let's be optimistic we won't find a swap
@@ -608,8 +642,8 @@ class KMedoids:
         elif self.init_medoids == "bandit":
             init_ids = _init_bandit_build(X, n_clusters, dist_func, verbose)
         else:
-            # init_ids = _get_random_centers(n_clusters, n_samples)
-            init_ids = [81, 593, 193, 22]
+            init_ids = _get_random_centers(n_clusters, n_samples)
+            # init_ids = [81, 593, 193, 22]
         init_end = time.time()
         init_elapsed = init_end - init_start
 
