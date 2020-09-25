@@ -26,11 +26,11 @@ print(df.shape)
 
 """"Run kmedoids on sample attributions"""
 kmed2 = KMedoids(
-    2,
+    5,
     dist_func=spearman_squared_distance,
     max_iter=10,
     tol=0.01,
-    init_medoids="bandit",
+    init_medoids="build",
     swap_medoids="pam",
     verbose=True,
 )
@@ -40,5 +40,8 @@ kmed2.fit(attributions, verbose=True)
 end_time = time.time()
 elapsed_time = end_time - start_time
 print(f"Finished test in {elapsed_time:.2f}")
+print(kmed2.centers)
+cluster_sizes = np.unique(kmed2.members, return_counts=True)[1]
+print(f'cluster sizes - {cluster_sizes}')
 # test that 2 attributions are in each cluster
 # assert(sum(kmedoids_2.members) == 2)
