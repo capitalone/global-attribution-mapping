@@ -16,13 +16,65 @@ from scipy.spatial.distance import cdist, pdist, squareform
 from sklearn.metrics import pairwise_distances
 
 
+def incremental_update(mu, sigma, g, n_used_ref):
+    s = sigma**2*n_used_ref
+
+    for i, item in enumerate(g):
+        k = n_used_ref + i
+        mu_old = mu
+        mu = mu + (item - mu)/(k + 1)
+        s = s + (item - mu_old)*(item - mu)
+    #    print(k, mu, var)
+    var = s/(n_used_ref + g.shape[0])
+    sigma = np.sqrt(var)
+    return mu, sigma
+
+
+#https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
+# https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+def update(existingAggregate, newValues):
+#    if isinstance(newValues, (int, float, complex)):
+#        # Handle single digits.
+#        newValues = [newValues]
+
+    (count, mean, M2) = existingAggregate
+    count += len(newValues)
+    # newvalues - oldMean
+    delta = np.subtract(newValues, [mean] * len(newValues))
+    mean += np.sum(delta / count)
+    # newvalues - newMeant
+    delta2 = np.subtract(newValues, [mean] * len(newValues))
+    M2 += np.sum(delta * delta2)
+
+    return (count, mean, M2)
+
+def finalize(existingAggregate):
+    (count, mean, M2) = existingAggregate
+    (mean, variance, sampleVariance) = (mean, M2/count, M2/(count - 1))
+    if count < 2:
+        return float('nan')
+    else:
+        return (mean, variance, sampleVariance)
+
 def _update_sigma(mu_old, mu_new, sigma, g, n_used_ref, batchsize):
-    t1 = n_used_ref * sigma
-    t2 = (mu_old - mu_new) ** 2
-    t3 = batchsize * np.std(g)
-    den = n_used_ref + batchsize
-    sigma = np.sqrt((t1 + t3) / den + t2)
+    c1 = batchsize/(n_used_ref + batchsize)
+    c2 = n_used_ref/(n_used_ref + batchsize)
+    t1 = c1 * np.var(g)
+    t2 = c2 * sigma**2
+    c3 = (batchsize * n_used_ref)/((batchsize + n_used_ref)**2)
+    t3 = c3 * (mu_new - mu_old)**2
+    sigma = np.sqrt((t1 + t2 + t3))
+#    print(f'\t {t1}, {t2}, {t3}')
     return sigma
+
+
+#def _update_sigma(mu_old, mu_new, sigma, g, n_used_ref, batchsize):
+#    t1 = n_used_ref * sigma
+#    t2 = (mu_new - g.mean()) ** 2
+#    t3 = batchsize * np.var(g)
+#    den = n_used_ref + batchsize
+#    sigma = np.sqrt((t1 + t3) / den + t2)
+#    return sigma
 
 
 def _get_random_centers(n_clusters, n_samples):
@@ -121,14 +173,24 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
                 tmp_delta = d - d_nearest[idx_ref]
                 g = np.where(tmp_delta > 0, 0, tmp_delta)  #
 
-                mu_old = mu_x[j]
+                #mu_old = mu_x[j]
                 td = np.sum(g)
-                mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + batchsize)
+                #mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + batchsize)
+                #sigma_x[j] = np.std(g)
 
-                # sigma_x[j] = np.std(g)
-                sigma_x[j] = _update_sigma(
-                    mu_old, mu_x[j], sigma_x[j], g, n_used_ref, batchsize
-                )
+
+                # updates based on welford's algorithm
+                var = sigma_x[j]**2 * n_used_ref
+                existingAggregate = (n_used_ref, mu_x[j], var)
+                updatedAggregate = update(existingAggregate, g)
+                mu_x[j], var, var_sample = finalize(updatedAggregate)
+                sigma_x[j] = np.sqrt(var)
+
+                #mu , sigma_x[j] = incremental_update(mu_x[j], sigma_x[j], g, n_used_ref)
+
+                #sigma_x[j] = _update_sigma(mu_old, mu_x[j], sigma_x[j], g, n_used_ref, batchsize)
+
+
 
             C_x = ci_scale * sigma_x
 
@@ -257,23 +319,28 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
                 K_jih[idx] = np.minimum(d_jh[idx], E[idx]) - D[idx]
 
                 Tih = np.sum(K_jih)
-                mu_old = mu_x[h, i]
-                mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + Tih) / (
-                    n_used_ref + batchsize
-                )
 
-                # sigma_x[h, i] = np.std(K_jih)
+                # baseline update of mu and sigma
+                #mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + Tih) / (n_used_ref + batchsize)
+                #sigma_x[h, i] = np.std(K_jih)
 
-                sigma_x[h, i] = _update_sigma(
-                    mu_old, mu_x[h, i], sigma_x[h, i], K_jih, n_used_ref, batchsize
-                )
 
-                # close but I think the scaling of batchsize is off...
-                # t1 = n_used_ref * sigma_x[h, i]
-                # t2 = (mu_old - mu_x[h, i]) ** 2
-                # t3 = batchsize * np.std(K_jih)
-                # den = n_used_ref + batchsize
-                # sigma_x[h, i] = np.sqrt((t1 + t3) / den + t2)
+                # updates based on welford's algorithm
+                var = sigma_x[h, i]**2 * n_used_ref
+                existingAggregate = (n_used_ref, mu_x[h, i], var)
+                updatedAggregate = update(existingAggregate, K_jih)
+                mu_x[h, i], var, var_sample = finalize(updatedAggregate)
+                sigma_x[h, i] = np.sqrt(var)
+
+                # this is good - but worth trying welford's algo
+                #mu_x[h,i] , sigma_x[h, i] = incremental_update(mu_x[h, i], sigma_x[h, i], K_jih, n_used_ref)
+
+
+                #mu_old = mu_x[h, i]
+                #sigma_x[h, i] = _update_sigma(
+                #    mu_old, mu_x[h, i], sigma_x[h, i], K_jih, n_used_ref, batchsize
+                #)
+                #mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + Tih) / (n_used_ref + batchsize)
 
             # downseslect mu and sigma to match candidate pairs
             # print("debug unravel - ", swap_pairs.shape)
@@ -302,9 +369,7 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
             # check if LCB of target is <= UCB of current best
             lcb_target = tmp_mu - C_x
             ucb_best = mu_y + C_y
-            # print("mu_y - ", mu_y)
-            # print("sigma_y - ", sigma_y)
-            print(f"ucb_best -  {ucb_best:.2f}, {mu_y:.2f}, {sigma_y:.2f}, {C_y:.2f}")
+            #print(f"ucb_best -  {ucb_best:.2f}, {mu_y:.2f}, {sigma_y:.2f}, {C_y:.2f}")
             # print("lcb_target - ", lcb_target.shape, lcb_target.min())
 
             # print("debug mu, sigma - ", idx, mu_y, sigma_y)
@@ -313,7 +378,7 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
 
             tmp_ids = np.where(lcb_target <= ucb_best)[0]
             swap_pairs = swap_pairs[tmp_ids]
-            print("\tremaining candidates - ", tmp_ids.shape[0])  # , tmp_ids)
+            print("\tremaining candidates - ", tmp_ids.shape[0])   #, tmp_ids)
 
             n_used_ref = n_used_ref + batchsize
         #
