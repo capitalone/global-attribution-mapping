@@ -1,14 +1,15 @@
 import time
 
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.decomposition import PCA
+#from sklearn.decomposition import PCA
 
 from gam.clustering import KMedoids
 from gam.spearman_distance import spearman_squared_distance
 
-# np.random.seed(42)
+np.random.seed(42)
+
 # load the data
 df = pd.read_csv("attr_round1.csv")
 attributions = df.values
@@ -16,11 +17,12 @@ attributions = df.values
 """"Run kmedoids on sample attributions"""
 kmed2 = KMedoids(
     4,
-    dist_func=spearman_squared_distance,
-    max_iter=10,
-    tol=0.01,
-    init_medoids=None,  # with build time was 30.25
-    swap_medoids='bandit',
+    #dist_func=spearman_squared_distance,
+    dist_func='euclidean',
+    max_iter=20,
+    tol=0.001,
+    init_medoids='bandit',
+    swap_medoids='stop',
     verbose=False,
 )
 # attributions = np.array([(0.2, 0.8), (0.1, 0.9), (0.91, 0.09), (0.88, 0.12)])

@@ -1,3 +1,4 @@
+import time
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,9 +14,12 @@ from pyclustering.utils.metric import distance_metric, type_metric
 # from sklearn.metrics import silhouette_samples, silhouette_score
 
 
-k = 5
 # load the data
-df = pd.read_csv("samples_3500.csv")
+k = 2
+csv_file = 'attr_round1.csv'
+#k = 5
+#csv_file = 'samples_3500.csv'
+df = pd.read_csv(csv_file)
 X = df.values
 print(df.shape)
 
@@ -34,9 +38,11 @@ def get_init_centers(n_clusters, n_samples):
 
 
 initial_medoids = get_init_centers(k, X.shape[0])
+#initial_medoids = [81, 593, 193, 152]
 my_func = spearman_squared_distance
 my_metric = distance_metric(type_metric.USER_DEFINED, func=my_func)
-km_clusterer = kmedoids(X, initial_medoids, metric=my_metric, ccore=True)
+#km_clusterer = kmedoids(X, initial_medoids, metric=my_metric, tolerance = 1e-5, ccore =True, iter_max=1e5, data_type='points')
+km_clusterer = kmedoids(X, initial_medoids,  metric='euclidean', tolerance = 1e-9, ccore =True, iter_max=1e5, data_type='points')
 
 start_time = time.time()
 km_clusterer.process()

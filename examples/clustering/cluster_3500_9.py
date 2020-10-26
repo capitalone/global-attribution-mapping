@@ -19,6 +19,8 @@ import pandas as pd
 from gam.clustering import KMedoids
 from gam.spearman_distance import spearman_squared_distance
 
+np.random.seed(42)
+
 # load the data
 df = pd.read_csv("samples_3500.csv")
 attributions = df.values
@@ -30,8 +32,8 @@ kmed2 = KMedoids(
     dist_func=spearman_squared_distance,
     max_iter=10,
     tol=0.01,
-    init_medoids="build",
-    swap_medoids="pam",
+    init_medoids='bandit',
+    swap_medoids="bandit",
     verbose=True,
 )
 # attributions = np.array([(0.2, 0.8), (0.1, 0.9), (0.91, 0.09), (0.88, 0.12)])
