@@ -168,7 +168,7 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
         idx_ref = np.random.choice(solution_ids, size=batchsize, replace=True)
         ci_scale = math.sqrt((2 * math.log(1.0 / delta)) / (n_used_ref + batchsize))
         for j in solution_ids:
-            d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
+            d = cdist(X[idx_ref,:], X[j, :].reshape(1, -1), metric=dist_func).squeeze()
             td = d.sum()
             mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + batchsize)
             sigma_x[j] = np.std(td)
@@ -364,12 +364,8 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
                 d_ji = d[:, i]
 
                 # distances from candidate medoid to ref pts
-                # d_jh = pairwise_distances(
-                #    X[idx_ref, :], X[h, :].reshape(1, -1), metric=dist_func
-                # ).squeeze()
-                d_jh = cdist(
-                    X[idx_ref, :], X[h, :].reshape(1, -1), metric=dist_func
-                ).squeeze()
+                # d_jh = pairwise_distances( X[idx_ref, :], X[h, :].reshape(1, -1), metric=dist_func).squeeze()
+                d_jh = cdist( X[idx_ref, :], X[h, :].reshape(1, -1), metric=dist_func).squeeze()
 
                 # calculate K_jih
                 # K_jih = np.zeros_like(D)
@@ -383,19 +379,20 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
                 idx = np.where(diff_ji == 0)
                 K_jih[idx] = np.minimum(d_jh[idx], E[idx]) - D[idx]
 
+                #Tih = np.sum(K_jih)
                 Tih = np.sum(K_jih)
 
                 # baseline update of mu and sigma
-                #mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + Tih) / (n_used_ref + batchsize)
-                #sigma_x[h, i] = np.std(K_jih)
+                mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + Tih) / (n_used_ref + batchsize)
+                sigma_x[h, i] = np.std(K_jih)
 
 
                 # updates based on welford's algorithm
-                var = sigma_x[h, i]**2 * n_used_ref
-                existingAggregate = (n_used_ref, mu_x[h, i], var)
-                updatedAggregate = update(existingAggregate, K_jih)
-                mu_x[h, i], var, var_sample = finalize(updatedAggregate)
-                sigma_x[h, i] = np.sqrt(var)
+                #var = sigma_x[h, i]**2 * n_used_ref
+                #existingAggregate = (n_used_ref, mu_x[h, i], var)
+                #updatedAggregate = update(existingAggregate, K_jih)
+                #mu_x[h, i], var, var_sample = finalize(updatedAggregate)
+                #sigma_x[h, i] = np.sqrt(var)
 
             # downseslect mu and sigma to match candidate pairs
             # print("debug unravel - ", swap_pairs.shape)
@@ -424,7 +421,7 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
             #tmp_ids = np.where(lcb_target <= ucb_best)[0]
             tmp_ids = np.where(lcb_target <= ucb_best)[0]
             swap_pairs = swap_pairs[tmp_ids]
-            #print("\tremaining candidates - ", tmp_ids.shape[0])   #, tmp_ids)
+            print("\tremaining candidates - ", tmp_ids.shape[0])   #, tmp_ids)
 
             n_used_ref = n_used_ref + batchsize
         #
