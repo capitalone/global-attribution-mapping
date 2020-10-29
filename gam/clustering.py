@@ -13,29 +13,28 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial.distance import cdist, pdist, squareform
-from sklearn.metrics import pairwise_distances
 
 
 def incremental_update(mu, sigma, g, n_used_ref):
-    s = sigma**2*n_used_ref
+    s = sigma ** 2 * n_used_ref
 
     for i, item in enumerate(g):
         k = n_used_ref + i
         mu_old = mu
-        mu = mu + (item - mu)/(k + 1)
-        s = s + (item - mu_old)*(item - mu)
+        mu = mu + (item - mu) / (k + 1)
+        s = s + (item - mu_old) * (item - mu)
     #    print(k, mu, var)
-    var = s/(n_used_ref + g.shape[0])
+    var = s / (n_used_ref + g.shape[0])
     sigma = np.sqrt(var)
     return mu, sigma
 
 
-#https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
+# https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
 # https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
 def update(existingAggregate, newValues):
-#    if isinstance(newValues, (int, float, complex)):
-#        # Handle single digits.
-#        newValues = [newValues]
+    #    if isinstance(newValues, (int, float, complex)):
+    #        # Handle single digits.
+    #        newValues = [newValues]
 
     (count, mean, M2) = existingAggregate
     count += len(newValues)
@@ -48,33 +47,14 @@ def update(existingAggregate, newValues):
 
     return (count, mean, M2)
 
+
 def finalize(existingAggregate):
     (count, mean, M2) = existingAggregate
-    (mean, variance, sampleVariance) = (mean, M2/count, M2/(count - 1))
+    (mean, variance, sampleVariance) = (mean, M2 / count, M2 / (count - 1))
     if count < 2:
-        return float('nan')
+        return float("nan")
     else:
         return (mean, variance, sampleVariance)
-
-#def _update_sigma(mu_old, mu_new, sigma, g, n_used_ref, batchsize):
-#    c1 = batchsize/(n_used_ref + batchsize)
-#    c2 = n_used_ref/(n_used_ref + batchsize)
-#    t1 = c1 * np.var(g)
-#    t2 = c2 * sigma**2
-#    c3 = (batchsize * n_used_ref)/((batchsize + n_used_ref)**2)
-#    t3 = c3 * (mu_new - mu_old)**2
-#    sigma = np.sqrt((t1 + t2 + t3))
-##    print(f'\t {t1}, {t2}, {t3}')
-#    return sigma
-
-
-#def _update_sigma(mu_old, mu_new, sigma, g, n_used_ref, batchsize):
-#    t1 = n_used_ref * sigma
-#    t2 = (mu_new - g.mean()) ** 2
-#    t3 = batchsize * np.var(g)
-#    den = n_used_ref + batchsize
-#    sigma = np.sqrt((t1 + t3) / den + t2)
-#    return sigma
 
 
 def _get_random_centers(n_clusters, n_samples):
@@ -85,6 +65,21 @@ def _get_random_centers(n_clusters, n_samples):
         if _ not in init_ids:
             init_ids.append(_)
     return init_ids
+
+
+def search_singles(X, solution_ids, dist_func, d_nearest):
+    """ Inner loop for pam build and bandit build functions """
+    td = float("inf")
+    for j in solution_ids:
+        d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
+        tmp_delta = d - d_nearest
+        g = np.where(tmp_delta > 0, 0, tmp_delta)  #
+        tmp_td = np.sum(g)
+        if tmp_td < td:
+            td = tmp_td
+            idx_best = j
+            d_best = np.copy(d).reshape(-1, 1)
+    return idx_best, d_best
 
 
 def _init_pam_build(X, n_clusters, dist_func):
@@ -102,9 +97,8 @@ def _init_pam_build(X, n_clusters, dist_func):
     # find first medoid - the most central point
     print("BUILD: Initializing first medoid - ")
     i = 0
-    td = float('inf')
+    td = float("inf")
     for j in range(n_samples):
-        # d = pairwise_distances(X, X[j, :].reshape(1, -1), metric=dist_func, n_jobs=6).squeeze()
         d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
         tmp_td = d.sum()
         if tmp_td < td:
@@ -112,7 +106,7 @@ def _init_pam_build(X, n_clusters, dist_func):
             centers[i] = j
             D = d.reshape(-1, 1)
 
-    print(f'Found first medoid = {centers[0]}')
+    print(f"Found first medoid = {centers[0]}")
 
     # find remaining medoids
     print("Initializing other medoids - ")
@@ -123,17 +117,17 @@ def _init_pam_build(X, n_clusters, dist_func):
         # available candidates
         unselected_ids = np.arange(n_samples)
         unselected_ids = np.delete(unselected_ids, centers[0:i])
-        for j in unselected_ids:
-            #d = pairwise_distances(X, X[j, :].reshape(1, -1), metric=dist_func, n_jobs=6).squeeze()
-            d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
-            tmp_delta = d - d_nearest
-            delta = np.where(tmp_delta > 0, 0, tmp_delta)  #
-            tmp_td = np.sum(delta)
-            #            print(j, d, d_nearest)
-            if tmp_td < td:
-                td = tmp_td
-                centers[i] = j
-                d_best = np.copy(d).reshape(-1, 1)
+        centers[i], d_best = search_singles(X, unselected_ids, dist_func, d_nearest)
+        #        for j in unselected_ids:
+        #            d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
+        #            tmp_delta = d - d_nearest
+        #            delta = np.where(tmp_delta > 0, 0, tmp_delta)  #
+        #            tmp_td = np.sum(delta)
+        #            #            print(j, d, d_nearest)
+        #            if tmp_td < td:
+        #                td = tmp_td
+        #                centers[i] = j
+        #                d_best = np.copy(d).reshape(-1, 1)
         # update D with new medoid
         # print(D.shape, d_best)
         D = np.concatenate((D, d_best), axis=1)
@@ -159,7 +153,7 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
     # find first medoid - the most central point
     print("BANDIT: Initializing first medoid - ")
     i = 0
-    td = float('inf')
+    td = float("inf")
     mu_x = np.zeros((n_samples))
     sigma_x = np.zeros((n_samples))
     C_x = np.zeros((n_samples))
@@ -170,52 +164,56 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
         idx_ref = np.random.choice(solution_ids, size=batchsize, replace=True)
         ci_scale = math.sqrt((2 * math.log(1.0 / delta)) / (n_used_ref + batchsize))
         for j in solution_ids:
-           # d = pairwise_distances(X, X[j, :].reshape(1, -1), metric=dist_func, n_jobs=6).squeeze()
             d = cdist(X[idx_ref, :], X[j, :].reshape(1, -1), metric=dist_func).squeeze()
             td = d.sum()
-            mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + batchsize)
-            sigma_x[j] = np.std(td)
+
+            # for smaller n_samples - simple update rule is not adequate
+            # mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + batchsize)
+            # sigma_x[j] = np.std(td)
+
+            # updates based on welford's algorithm
+            # TODO - keep variance matrix to avoid conversion overflows
+            var = sigma_x[j] ** 2 * n_used_ref
+            existingAggregate = (n_used_ref, mu_x[j], var)
+            updatedAggregate = update(existingAggregate, d)
+            mu_x[j], var, var_sample = finalize(updatedAggregate)
+            sigma_x[j] = np.sqrt(var)
+
         C_x = ci_scale * sigma_x
         ucb = mu_x + C_x
         idx = np.argmin(ucb)
         lcb_target = mu_x - C_x
 
-        #ucb_best = mu_y + C_y
         ucb_best = ucb.min()
         solution_ids = np.where(lcb_target <= ucb_best)[0]
-        print('debug medoid - ', solution_ids.shape[0], ucb_best, n_used_ref)
+        print("debug med - ", solution_ids.shape[0], ucb_best, n_used_ref)
         n_used_ref = n_used_ref + batchsize
 
     if solution_ids.shape[0] == 1:
         # save the single sample as a medoid (either keep index, or find index of sample)
         centers[i] = solution_ids  # probably a type error
-        #d = pairwise_distances(X, X[solution_ids, :].reshape(1, -1), metric=dist_func, n_jobs=6).squeeze()
         d = cdist(X, X[solution_ids, :].reshape(1, -1), metric=dist_func).squeeze()
         d_best = np.copy(d).reshape(-1, 1)
     else:  # this is fastPam build - with far fewer pts to evaluate
         # we have more than one candidate - so lets check which one is best
         td = float("inf")
         for j in solution_ids:
-            #d = pairwise_distances(X, X[j, :].reshape(1, -1), metric=dist_func, n_jobs=6).squeeze()
             d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
-            tmp_td = np.sum(g)
+            tmp_td = np.sum(d)
             if tmp_td < td:
                 td = tmp_td
                 centers[i] = j
                 D = d.reshape(-1, 1)
-    print(f'Found first medoid = {centers[0]}')
+    print(f"Found first medoid = {centers[0]}")
 
-    # find medoids
-    print("Initializing medoids - ")
-#    mu_y = 0
-#    sigma_y = 0
+    # find the remaining medoids
+    print("Initializing other medoids - ")
     for i in range(1, n_clusters):
         # initialize mu and sigma
-        td = float('inf')
+        td = float("inf")
         mu_x = np.zeros((n_samples))
         sigma_x = np.zeros((n_samples))
         C_x = np.zeros((n_samples))
-
         d_nearest = np.partition(D, 0)[:, 0]
 
         # available candidates - S_tar - we draw samples from this population
@@ -230,8 +228,9 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
             ci_scale = math.sqrt((2 * math.log(1.0 / delta)) / (n_used_ref + batchsize))
             for j in solution_ids:
                 # look at distances from this point to a random subset (not whole set!)
-                #d = pairwise_distances(X[idx_ref], X[j, :].reshape(1, -1), metric=dist_func, n_jobs=6).squeeze()
-                d = cdist(X[idx_ref, :], X[j, :].reshape(1, -1), metric=dist_func).squeeze()
+                d = cdist(
+                    X[idx_ref, :], X[j, :].reshape(1, -1), metric=dist_func
+                ).squeeze()
                 tmp_delta = d - d_nearest[idx_ref]
                 g = np.where(tmp_delta > 0, 0, tmp_delta)  #
 
@@ -239,76 +238,48 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
                 mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + batchsize)
                 sigma_x[j] = np.std(g)
 
-
                 # updates based on welford's algorithm
-                #var = sigma_x[j]**2 * n_used_ref
-                #existingAggregate = (n_used_ref, mu_x[j], var)
-                #updatedAggregate = update(existingAggregate, g)
-                #mu_x[j], var, var_sample = finalize(updatedAggregate)
-                #sigma_x[j] = np.sqrt(var)
-
+                # var = sigma_x[j] ** 2 * n_used_ref
+                # existingAggregate = (n_used_ref, mu_x[j], var)
+                # updatedAggregate = update(existingAggregate, g)
+                # mu_x[j], var, var_sample = finalize(updatedAggregate)
+                # sigma_x[j] = np.sqrt(var)
 
             # Remove pts that are unlikely to be a solution
             C_x = ci_scale * sigma_x
-            #idx = np.argmin(mu_x)
-
             ucb = mu_x + C_x
             idx = np.argmin(ucb)
 
-            #idx = np.argmin(mu_x[solution_ids])
-            #print(f"debug - {idx}")
-            #mu_y = mu_x[idx]
-            #sigma_y = sigma_x[idx]
-            #C_y = ci_scale * sigma_y
-
-            # check if LCB of target is > UCB of current best
+            # check if LCB of target is <= UCB of current best
             lcb_target = mu_x - C_x
-            #ucb_best = mu_y + C_y
             ucb_best = ucb.min()
 
             # print("debug mu, sigma - ", idx, mu_y, sigma_y)
             # print("debug shorten list of solutions - ", solution_ids)
             # print("debug shorten list of solutions - ", lcb_target.shape)
             solution_ids = np.where(lcb_target <= ucb_best)[0]
+            # clean up any center idx that crept in...
             for ic in centers:
                 if ic in solution_ids:
                     solution_ids = np.delete(solution_ids, ic)
-#            try:
-#                solution_ids = np.delete(solution_ids, centers)
-#            except IndexError:
-#                #print('centers - ', centers)
-#                #print(solution_ids)
-#                print('\ttried to remove non-existent centers')
-                #sys.exit()
 
             n_used_ref = n_used_ref + batchsize
-            #print(f'batch debug - {idx}, {mu_y:.2f}, {sigma_y:.2f}')
+            # print(f'batch debug - {idx}, {mu_y:.2f}, {sigma_y:.2f}')
         #
-        # so we have reduced the playing field to 1 or multiple candidates
+        # finish search over the remaining candidates
         #
         if verbose:
-            print( f"Final eval with candidates = {solution_ids.shape[0]}")  # , {solution_ids}")
+            print(
+                f"Final eval with candidates = {solution_ids.shape[0]}"
+            )  # , {solution_ids}")
         if solution_ids.shape[0] == 1:
             # save the single sample as a medoid (either keep index, or find index of sample)
             centers[i] = solution_ids  # probably a type error
-            #d = pairwise_distances(X[idx_ref], X[solution_ids, :].reshape(1, -1), metric=dist_func, n_jobs=6).squeeze()
             d = cdist(X, X[solution_ids, :].reshape(1, -1), metric=dist_func).squeeze()
             d_best = np.copy(d).reshape(-1, 1)
         else:  # this is fastPam build - with far fewer pts to evaluate
             # we have more than one candidate - so lets check which one is best
-            td = float("inf")
-            for j in solution_ids:
-                #d = pairwise_distances(X, X[j, :].reshape(1, -1), metric=dist_func, n_jobs=6).squeeze()
-                d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
-                tmp_delta = d - d_nearest
-                g = np.where(tmp_delta > 0, 0, tmp_delta)  #
-                tmp_td = np.sum(g)
-                #            print(j, d, d_nearest)
-                if tmp_td < td:
-                    td = tmp_td
-                    centers[i] = j
-                    d_best = np.copy(d).reshape(-1, 1)
-            #        print("during final search - updated with - ", i, j, td)
+            centers[i], d_best = search_singles(X, solution_ids, dist_func, d_nearest)
         D = np.concatenate((D, d_best), axis=1)
         print("\t updated centers - ", centers)
 
@@ -342,7 +313,6 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
 
         Tih_min = float("inf")
         done = True  # let's be optimistic we won't find a swap
-        #d = pairwise_distances(X, X[centers, :].reshape(1, -1), metric=dist_func, n_jobs=6).squeeze()
         d = cdist(X, X[centers, :], metric=dist_func)
         # cache nearest (D) and second nearest (E) distances to medoids
         tmp = np.partition(d, 1)
@@ -370,8 +340,9 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
                 d_ji = d[:, i]
 
                 # distances from candidate medoid to ref pts
-                #d_jh = pairwise_distances( X[idx_ref, :], X[h, :].reshape(1, -1), metric=dist_func).squeeze()
-                d_jh = cdist( X[idx_ref, :], X[h, :].reshape(1, -1), metric=dist_func).squeeze()
+                d_jh = cdist(
+                    X[idx_ref, :], X[h, :].reshape(1, -1), metric=dist_func
+                ).squeeze()
 
                 # calculate K_jih
                 # K_jih = np.zeros_like(D)
@@ -385,20 +356,21 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
                 idx = np.where(diff_ji == 0)
                 K_jih[idx] = np.minimum(d_jh[idx], E[idx]) - D[idx]
 
-                #Tih = np.sum(K_jih)
+                # Tih = np.sum(K_jih)
                 Tih = np.sum(K_jih)
 
                 # baseline update of mu and sigma
-                mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + Tih) / (n_used_ref + batchsize)
+                mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + Tih) / (
+                    n_used_ref + batchsize
+                )
                 sigma_x[h, i] = np.std(K_jih)
 
-
                 # updates based on welford's algorithm
-                #var = sigma_x[h, i]**2 * n_used_ref
-                #existingAggregate = (n_used_ref, mu_x[h, i], var)
-                #updatedAggregate = update(existingAggregate, K_jih)
-                #mu_x[h, i], var, var_sample = finalize(updatedAggregate)
-                #sigma_x[h, i] = np.sqrt(var)
+                # var = sigma_x[h, i]**2 * n_used_ref
+                # existingAggregate = (n_used_ref, mu_x[h, i], var)
+                # updatedAggregate = update(existingAggregate, K_jih)
+                # mu_x[h, i], var, var_sample = finalize(updatedAggregate)
+                # sigma_x[h, i] = np.sqrt(var)
 
             # downseslect mu and sigma to match candidate pairs
             # print("debug unravel - ", swap_pairs.shape)
@@ -410,24 +382,23 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
             C_x = ci_scale * tmp_sigma
 
             # Remove pts that cannot be a solution - don't make the cut in terms of potential reward
-            #idx = np.argmin(tmp_mu)
+            # idx = np.argmin(tmp_mu)
             ucb = tmp_mu + C_x
             idx = np.argmin(ucb)
             ucb_best = ucb.min()
 
-
-            #mu_y = tmp_mu[idx]
-            #sigma_y = tmp_sigma[idx]
-            #C_y = ci_scale * sigma_y
+            # mu_y = tmp_mu[idx]
+            # sigma_y = tmp_sigma[idx]
+            # C_y = ci_scale * sigma_y
 
             # check if LCB of target is <= UCB of current best
             lcb_target = tmp_mu - C_x
-            #ucb_best = mu_y + C_y
+            # ucb_best = mu_y + C_y
 
-            #tmp_ids = np.where(lcb_target <= ucb_best)[0]
+            # tmp_ids = np.where(lcb_target <= ucb_best)[0]
             tmp_ids = np.where(lcb_target <= ucb_best)[0]
             swap_pairs = swap_pairs[tmp_ids]
-            print("\tremaining candidates - ", tmp_ids.shape[0])   #, tmp_ids)
+            print("\tremaining candidates - ", tmp_ids.shape[0])  # , tmp_ids)
 
             n_used_ref = n_used_ref + batchsize
         #
@@ -446,9 +417,6 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
             i = a_swap[1]
             d_ji = d[:, i]
             # for h in solution_ids:
-            #d_jh = pairwise_distances(
-            #   X, X[h, :].reshape(1, -1), metric=dist_func, n_jobs=6
-            #).squeeze()
             d_jh = cdist(X, X[h, :].reshape(1, -1), metric=dist_func).squeeze()
 
             # calculate K_jih
@@ -474,7 +442,7 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
                 i_swap = i
                 h_swap = h
         # execute the swap
-        #if Tih_min < 0:
+        # if Tih_min < 0:
         if Tih_min < 0 and abs(Tih_min) > tol:
             if verbose:
                 print("\tSwapped - ", centers[i_swap], h_swap, Tih_min)
@@ -496,7 +464,6 @@ def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
     current_iteration = 1
 
     while not done and (current_iteration < max_iter):
-        #d = pairwise_distances(X, X[centers, :], metric=dist_func, n_jobs=6)
         d = cdist(X, X[centers, :], metric=dist_func)
         # cache nearest (D) and second nearest (E) distances to medoids
         tmp = np.partition(d, 1)
@@ -514,11 +481,9 @@ def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
             unselected_ids = np.arange(n_samples)
             unselected_ids = np.delete(unselected_ids, centers[0:i])
             for h in unselected_ids:
-                #d_jh = pairwise_distances(
-                #    X, X[h, :].reshape(1, -1), metric=dist_func, n_jobs=6
-                #).squeeze()
                 d_jh = cdist(X, X[h, :].reshape(1, -1), metric=dist_func).squeeze()
 
+                #                def search_pairs(i, h, d, X, dist_func):/b
                 # calculate K_jih
                 K_jih = np.zeros_like(D)
                 # if d_ji > D:
@@ -560,7 +525,6 @@ def _get_distance(data1, data2):
 
 
 def _assign_pts_to_medoids(X, centers_id, dist_func):
-    #dist_mat = pairwise_distances(X, X[centers_id, :], metric=dist_func, n_jobs=6)
     dist_mat = cdist(X, X[centers_id, :], metric=dist_func)
     members = np.argmin(dist_mat, axis=1)
     return members, dist_mat
@@ -577,7 +541,6 @@ def _get_cost(X, centers_id, dist_func):
     """Return total cost and cost of each cluster"""
     dist_mat = np.zeros((len(X), len(centers_id)))
     # compute distance matrix
-    #dist_mat = pairwise_distances(X, X[centers_id, :], metric=dist_func, n_jobs=6)
     dist_mat = cdist(X, X[centers_id, :], metric=dist_func)
 
     mask = np.argmin(dist_mat, axis=1)
