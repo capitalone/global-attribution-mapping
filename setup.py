@@ -14,10 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from setuptools import setup
+import os
+from io import open
 
-import os 
-from io import open 
+from setuptools import setup
 
 CURR_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -27,13 +27,14 @@ with open(os.path.join(CURR_DIR, "README.md"), encoding="utf-8") as file_open:
 DESCRIPTION = 'Global Explanations for Deep Neural Networks'
 
 setup(
-    name='GAM',
+    name='gam',
     version='0.0.1',
     packages=['gam', 'tests'],
     maintainer='Brian Barr',
     maintainer_email='brian.barr@capitalone.com',
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
+    long_description_content_type='text/markdown',
     license='Apache License 2.0',
     install_requires=[
         "matplotlib > 2.2.0",
