@@ -32,6 +32,8 @@ setup(
     packages=['gam', 'tests'],
     maintainer='Brian Barr',
     maintainer_email='brian.barr@capitalone.com',
+    url="https://github.com/capitalone/global-attribution-mapping",
+    classifiers=["Programming Language :: Python :: 3"],
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
     long_description_content_type='text/markdown',
