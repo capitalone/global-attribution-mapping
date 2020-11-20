@@ -118,21 +118,8 @@ def _init_pam_build(X, n_clusters, dist_func):
         unselected_ids = np.arange(n_samples)
         unselected_ids = np.delete(unselected_ids, centers[0:i])
         centers[i], d_best = search_singles(X, unselected_ids, dist_func, d_nearest)
-        #        for j in unselected_ids:
-        #            d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
-        #            tmp_delta = d - d_nearest
-        #            delta = np.where(tmp_delta > 0, 0, tmp_delta)  #
-        #            tmp_td = np.sum(delta)
-        #            #            print(j, d, d_nearest)
-        #            if tmp_td < td:
-        #                td = tmp_td
-        #                centers[i] = j
-        #                d_best = np.copy(d).reshape(-1, 1)
-        # update D with new medoid
-        # print(D.shape, d_best)
         D = np.concatenate((D, d_best), axis=1)
         print(f"updated centers - {centers}")
-
     return centers
 
 
@@ -209,7 +196,6 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
     # find the remaining medoids
     print("Initializing other medoids - ")
     for i in range(1, n_clusters):
-        # initialize mu and sigma
         td = float("inf")
         mu_x = np.zeros((n_samples))
         sigma_x = np.zeros((n_samples))
@@ -238,13 +224,6 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
                 mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + batchsize)
                 sigma_x[j] = np.std(g)
 
-                # updates based on welford's algorithm
-                # var = sigma_x[j] ** 2 * n_used_ref
-                # existingAggregate = (n_used_ref, mu_x[j], var)
-                # updatedAggregate = update(existingAggregate, g)
-                # mu_x[j], var, var_sample = finalize(updatedAggregate)
-                # sigma_x[j] = np.sqrt(var)
-
             # Remove pts that are unlikely to be a solution
             C_x = ci_scale * sigma_x
             ucb = mu_x + C_x
@@ -253,18 +232,14 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
             # check if LCB of target is <= UCB of current best
             lcb_target = mu_x - C_x
             ucb_best = ucb.min()
-
-            # print("debug mu, sigma - ", idx, mu_y, sigma_y)
-            # print("debug shorten list of solutions - ", solution_ids)
-            # print("debug shorten list of solutions - ", lcb_target.shape)
             solution_ids = np.where(lcb_target <= ucb_best)[0]
+
             # clean up any center idx that crept in...
             for ic in centers:
                 if ic in solution_ids:
                     solution_ids = np.delete(solution_ids, ic)
 
             n_used_ref = n_used_ref + batchsize
-            # print(f'batch debug - {idx}, {mu_y:.2f}, {sigma_y:.2f}')
         #
         # finish search over the remaining candidates
         #
@@ -381,19 +356,20 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
             tmp_sigma = sigma_x.flatten()[flat_indices]
             C_x = ci_scale * tmp_sigma
 
-            # Remove pts that cannot be a solution - don't make the cut in terms of potential reward
-            # idx = np.argmin(tmp_mu)
+            # Remove pts that cannot be a solution - in terms of potential reward
             ucb = tmp_mu + C_x
             idx = np.argmin(ucb)
             ucb_best = ucb.min()
 
+            # this is the approach written up in paper 
+            # idx = np.argmin(tmp_mu)
             # mu_y = tmp_mu[idx]
             # sigma_y = tmp_sigma[idx]
             # C_y = ci_scale * sigma_y
+            # ucb_best = mu_y + C_y
 
             # check if LCB of target is <= UCB of current best
             lcb_target = tmp_mu - C_x
-            # ucb_best = mu_y + C_y
 
             # tmp_ids = np.where(lcb_target <= ucb_best)[0]
             tmp_ids = np.where(lcb_target <= ucb_best)[0]
@@ -403,6 +379,7 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
             n_used_ref = n_used_ref + batchsize
         #
         # with reduced number of candidates - run PAM swap
+        # TODO - unify full swaps - like was done with search_singles
         #
         print(
             f"Entering swap with {swap_pairs.shape[0]} candidates...pts used = {n_used_ref}"
@@ -455,7 +432,6 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
         # our best swap would degrade the clustering (min Tih > 0)
         current_iteration = current_iteration + 1
     return centers
-
 
 def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
     done = False
