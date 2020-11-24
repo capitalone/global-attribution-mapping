@@ -30,6 +30,7 @@ class GAM:
     Args:
         k (int): number of clusters and centroids to form, default=2
         attributions_path (str): path for csv containing local attributions
+        attributions: (obj) in-memory dataframe holding local attributions
         cluster_method: None, or callable, default=None
             None - use GAM library routines for k-medoids clustering
             callable - user provided external function to perform clustering
@@ -44,6 +45,7 @@ class GAM:
         self,
         k=2,
         attributions_path="local_attributions.csv",
+        attributions=None,
         cluster_method=None,
         distance="spearman",
         use_normalized=True,
@@ -51,7 +53,15 @@ class GAM:
         max_iter=100,
         tol=1e-3,
     ):
+
         self.attributions_path = attributions_path
+        self.attributions = attributions
+        # self.normalized_attributions = None
+        self.use_normalized = use_normalized
+        self.clustering_attributions = None
+        self.feature_labels = None
+
+
         self.cluster_method = cluster_method
 
         self.distance = distance
@@ -64,21 +74,15 @@ class GAM:
                 distance
             )  # assume this is  metric listed in pairwise.PAIRWISE_DISTANCE_FUNCTIONS
 
-        self.scoring_method = scoring_method
-
         self.k = k
         self.max_iter = max_iter
         self.tol = tol
 
-        self.attributions = None
-        # self.normalized_attributions = None
-        self.use_normalized = use_normalized
-        self.clustering_attributions = None
-        self.feature_labels = None
-
         self.subpopulations = None
         self.subpopulation_sizes = None
         self.explanations = None
+
+        self.scoring_method = scoring_method
         self.score = None
 
     def _read_local(self):
@@ -200,7 +204,9 @@ class GAM:
 
     def generate(self):
         """Clusters local attributions into subpopulations with global explanations"""
-        self._read_local()
+        if self.attributions is None:
+            # we need to read in attributions from a CSV file, since we don't have any in memory
+            self._read_local()
         if self.use_normalized:
             self.clustering_attributions = GAM.normalize(self.attributions)
         else:
