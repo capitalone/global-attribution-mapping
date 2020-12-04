@@ -13,6 +13,7 @@ from collections import Counter
 
 import matplotlib.pylab as plt
 import numpy as np
+import pandas as pd
 from sklearn.metrics import pairwise_distances, silhouette_score
 
 from gam.clustering import KMedoids
@@ -30,6 +31,8 @@ class GAM:
     Args:
         k (int): number of clusters and centroids to form, default=2
         attributions_path (str): path for csv containing local attributions
+        attributions_df (pd.DataFrame, np.array, list): in-memory dataframe holding local attributions
+        feature_labels
         cluster_method: None, or callable, default=None
             None - use GAM library routines for k-medoids clustering
             callable - user provided external function to perform clustering
@@ -44,6 +47,8 @@ class GAM:
         self,
         k=2,
         attributions_path="local_attributions.csv",
+        attributions=None,
+        feature_labels=None,
         cluster_method=None,
         distance="spearman",
         use_normalized=True,
@@ -51,7 +56,32 @@ class GAM:
         max_iter=100,
         tol=1e-3,
     ):
+
         self.attributions_path = attributions_path
+
+        # preprocessing attributions and feature_labels if they're a pandas dataframe, numpy array, or list
+        if isinstance(attributions, pd.DataFrame):
+            self.attributions = np.asarray(attributions.values.tolist())
+            self.feature_labels = attributions.columns.tolist()
+        elif isinstance(attributions, (np.ndarray, list)) or isinstance(feature_labels, (np.ndarray, list)):
+            if (isinstance(attributions, (np.ndarray, list)) and feature_labels is None) or (attributions is None and feature_labels is not None):
+                raise ValueError("You must have both 'attributions' and 'feature_labels' if 'attributions' is not a dataframe.")
+            if isinstance(attributions, list):
+                self.attributions = np.asarray(attributions)
+            elif isinstance(attributions, np.ndarray):
+                self.attributions = attributions
+            if isinstance(feature_labels, list):
+                self.feature_labels = feature_labels
+            elif isinstance(feature_labels, np.ndarray):
+                self.feature_labels = feature_labels.tolist()
+        else:
+            self.attributions=None
+            self.feature_labels = None
+
+        # self.normalized_attributions = None
+        self.use_normalized = use_normalized
+        self.clustering_attributions = None
+
         self.cluster_method = cluster_method
 
         self.distance = distance
@@ -64,21 +94,15 @@ class GAM:
                 distance
             )  # assume this is  metric listed in pairwise.PAIRWISE_DISTANCE_FUNCTIONS
 
-        self.scoring_method = scoring_method
-
         self.k = k
         self.max_iter = max_iter
         self.tol = tol
 
-        self.attributions = None
-        # self.normalized_attributions = None
-        self.use_normalized = use_normalized
-        self.clustering_attributions = None
-        self.feature_labels = None
-
         self.subpopulations = None
         self.subpopulation_sizes = None
         self.explanations = None
+
+        self.scoring_method = scoring_method
         self.score = None
 
     def _read_local(self):
@@ -200,7 +224,9 @@ class GAM:
 
     def generate(self):
         """Clusters local attributions into subpopulations with global explanations"""
-        self._read_local()
+        if self.attributions is None:
+            # we need to read in attributions from a CSV file, since we don't have any in memory
+            self._read_local()
         if self.use_normalized:
             self.clustering_attributions = GAM.normalize(self.attributions)
         else:
