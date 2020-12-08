@@ -234,7 +234,7 @@ class GAM:
 
     def generate(self):
         """Clusters local attributions into subpopulations with global explanations"""
-        if self.attributions is None:
+        if isinstance(self.attributions, str):
             # we need to read in attributions from a CSV file, since we don't have any in memory
             self._read_local()
         else:
