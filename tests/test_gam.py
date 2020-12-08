@@ -12,6 +12,47 @@ import pytest
 from gam import gam
 
 
+def test_read_df_or_list():
+    # preprocessing
+    df = pd.read_csv("tests/test_attributes.csv")
+    att_list = df.columns.tolist()
+    feat_labels_list = df.values.tolist()
+
+    att_arr = np.asarray(df.columns.tolist())
+    feat_labels_arr = np.asarray(df.values.tolist())
+
+    # Testing DataFrame
+    g_df = gam.GAM(attributions=df)
+
+    assert hasattr(g_df, "attributions")
+    assert g_df.attributions.shape == (4, 3)
+
+    assert hasattr(g_df, "feature_labels")
+    assert g_df.feature_labels == ["a1", "a2", "a3"]
+
+    # Testing lists
+    g_list = gam.GAM(attributions=att_list, feature_labels=feat_labels_list)
+
+    assert hasattr(g_list, "attributions")
+    assert g_list.attributions.shape == (4, 3)
+
+    assert hasattr(g_list, "feature_labels")
+    assert g_list.feature_labels == ["a1", "a2", "a3"]
+    
+    # Testing numpy arrays
+    g_arr = gam.GAM(attributions=att_arr, feature_labels=feat_labels_arr)
+
+    assert hasattr(g_arr, "attributions")
+    assert g_arr.attributions.shape == (4, 3)
+
+    assert hasattr(g_arr, "feature_labels")
+    assert g_arr.feature_labels == ["a1", "a2", "a3"]
+    
+    # Testing failure
+    with pytest.raises(ValueError):
+        g_fail = gam.GAM(attributions=att_arr)
+
+
 def test_read_csv():
     g = gam.GAM(attributions_path="tests/test_attributes.csv")
     g._read_local()

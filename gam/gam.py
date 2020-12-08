@@ -59,24 +59,8 @@ class GAM:
 
         self.attributions_path = attributions_path
 
-        # preprocessing attributions and feature_labels if they're a pandas dataframe, numpy array, or list
-        if isinstance(attributions, pd.DataFrame):
-            self.attributions = np.asarray(attributions.values.tolist())
-            self.feature_labels = attributions.columns.tolist()
-        elif isinstance(attributions, (np.ndarray, list)) or isinstance(feature_labels, (np.ndarray, list)):
-            if (isinstance(attributions, (np.ndarray, list)) and feature_labels is None) or (attributions is None and feature_labels is not None):
-                raise ValueError("You must have both 'attributions' and 'feature_labels' if 'attributions' is not a dataframe.")
-            if isinstance(attributions, list):
-                self.attributions = np.asarray(attributions)
-            elif isinstance(attributions, np.ndarray):
-                self.attributions = attributions
-            if isinstance(feature_labels, list):
-                self.feature_labels = feature_labels
-            elif isinstance(feature_labels, np.ndarray):
-                self.feature_labels = feature_labels.tolist()
-        else:
-            self.attributions=None
-            self.feature_labels = None
+        self.attributions = attributions
+        self.feature_labels = feature_labels
 
         # self.normalized_attributions = None
         self.use_normalized = use_normalized
@@ -104,6 +88,32 @@ class GAM:
 
         self.scoring_method = scoring_method
         self.score = None
+
+    def _read_df_or_list(self):
+        """
+        Converts attributions to numpy array and feature labels to a list if a pandas dataframe, numpy array, or list is passed in,
+
+        Returns
+            attributions (numpy.ndarray): for example, [(.2, .8), (.1, .9)]
+            feature labels: ("height", "weight")
+        """
+        if isinstance(self.attributions, pd.DataFrame):
+            self.attributions = np.asarray(self.attributions.values.tolist())
+            self.feature_labels = self.attributions.columns.tolist()
+        elif isinstance(self.attributions, (np.ndarray, list)) or isinstance(self.feature_labels, (np.ndarray, list)):
+            if (isinstance(self.attributions, (np.ndarray, list)) and self.feature_labels is None) or (self.attributions is None and self.feature_labels is not None):
+                raise ValueError("You must have both 'attributions' and 'feature_labels' if 'attributions' is not a dataframe.")
+            if isinstance(self.attributions, list):
+                self.attributions = np.asarray(self.attributions)
+            elif isinstance(self.attributions, np.ndarray):
+                self.attributions = self.attributions
+            if isinstance(self.feature_labels, list):
+                self.feature_labels = self.feature_labels
+            elif isinstance(self.feature_labels, np.ndarray):
+                self.feature_labels = self.feature_labels.tolist()
+        else:
+            self.attributions = None
+            self.feature_labels = None
 
     def _read_local(self):
         """
@@ -227,6 +237,8 @@ class GAM:
         if self.attributions is None:
             # we need to read in attributions from a CSV file, since we don't have any in memory
             self._read_local()
+        else:
+            self._read_df_or_list()
         if self.use_normalized:
             self.clustering_attributions = GAM.normalize(self.attributions)
         else:
