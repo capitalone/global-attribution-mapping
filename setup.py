@@ -44,4 +44,5 @@ setup(
         "scikit-learn > 0.21.3",
         "numpy > 1.17.2",
     ],
+    python_requires=">=3.6",
 )
