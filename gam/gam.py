@@ -112,7 +112,6 @@ class GAM:
             elif isinstance(self.feature_labels, np.ndarray):
                 self.feature_labels = self.feature_labels.tolist()
         else:
-            print('should not be here')
             self.attributions = None
             self.feature_labels = None
 
