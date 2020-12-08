@@ -98,8 +98,8 @@ class GAM:
             feature labels: ("height", "weight")
         """
         if isinstance(self.attributions, pd.DataFrame):
-            self.attributions = np.asarray(self.attributions.values.tolist())
             self.feature_labels = self.attributions.columns.tolist()
+            self.attributions = np.asarray(self.attributions.values.tolist())
         elif isinstance(self.attributions, (np.ndarray, list)) or isinstance(self.feature_labels, (np.ndarray, list)):
             if (isinstance(self.attributions, (np.ndarray, list)) and self.feature_labels is None) or (self.attributions is None and self.feature_labels is not None):
                 raise ValueError("You must have both 'attributions' and 'feature_labels' if 'attributions' is not a dataframe.")
@@ -112,6 +112,7 @@ class GAM:
             elif isinstance(self.feature_labels, np.ndarray):
                 self.feature_labels = self.feature_labels.tolist()
         else:
+            print('should not be here')
             self.attributions = None
             self.feature_labels = None
 
@@ -234,11 +235,11 @@ class GAM:
 
     def generate(self):
         """Clusters local attributions into subpopulations with global explanations"""
-        if isinstance(self.attributions, str):
+        if self.attributions is not None:
+            self._read_df_or_list()
+        else:
             # we need to read in attributions from a CSV file, since we don't have any in memory
             self._read_local()
-        else:
-            self._read_df_or_list()
         if self.use_normalized:
             self.clustering_attributions = GAM.normalize(self.attributions)
         else:
