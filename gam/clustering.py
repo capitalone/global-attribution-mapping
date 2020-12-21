@@ -1,9 +1,8 @@
 """
 Implementation of kmedoids using custom distance metric
-Adaped from https://raw.githubusercontent.com/shenxudeu/K_Medoids/master/k_medoids.py
-
-TODO:
-- refactor and test components of implementation
+Originally adapted from https://raw.githubusercontent.com/shenxudeu/K_Medoids/master/k_medoids.py
+FastPAM1 from: https://arxiv.org/pdf/2008.05171.pdf
+Bandit PAM from: https://arxiv.org/pdf/2006.06856.pdf
 """
 import math
 import sys
@@ -15,42 +14,28 @@ import numpy as np
 from scipy.spatial.distance import cdist, pdist, squareform
 
 
-def incremental_update(mu, sigma, g, n_used_ref):
-    s = sigma ** 2 * n_used_ref
+def update(existingAggregate, new_values):
+    """ Batch updates mu and sigma for bandit PAM using Welford's algorithm
+    Refs:
+        https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+        https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
+    """
 
-    for i, item in enumerate(g):
-        k = n_used_ref + i
-        mu_old = mu
-        mu = mu + (item - mu) / (k + 1)
-        s = s + (item - mu_old) * (item - mu)
-    #    print(k, mu, var)
-    var = s / (n_used_ref + g.shape[0])
-    sigma = np.sqrt(var)
-    return mu, sigma
-
-
-# https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
-# https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
-def update(existingAggregate, newValues):
-    #    if isinstance(newValues, (int, float, complex)):
-    #        # Handle single digits.
-    #        newValues = [newValues]
-
-    (count, mean, M2) = existingAggregate
-    count += len(newValues)
+    (count, mean, m2) = existingAggregate
+    count += len(new_values)
     # newvalues - oldMean
-    delta = np.subtract(newValues, [mean] * len(newValues))
+    delta = np.subtract(new_values, [mean] * len(new_values))
     mean += np.sum(delta / count)
-    # newvalues - newMeant
-    delta2 = np.subtract(newValues, [mean] * len(newValues))
-    M2 += np.sum(delta * delta2)
+    # newvalues - newMean
+    delta2 = np.subtract(new_values, [mean] * len(new_values))
+    m2 += np.sum(delta * delta2)
 
-    return (count, mean, M2)
+    return (count, mean, m2)
 
 
 def finalize(existingAggregate):
-    (count, mean, M2) = existingAggregate
-    (mean, variance, sampleVariance) = (mean, M2 / count, M2 / (count - 1))
+    (count, mean, m2) = existingAggregate
+    (mean, variance, sampleVariance) = (mean, m2 / count, m2 / (count - 1))
     if count < 2:
         return float("nan")
     else:
@@ -58,7 +43,8 @@ def finalize(existingAggregate):
 
 
 def _get_random_centers(n_clusters, n_samples):
-    """Return random points as initial centers"""
+    """Return random points as initial centers
+    """
     init_ids = []
     while len(init_ids) < n_clusters:
         _ = np.random.randint(0, n_samples)
@@ -124,14 +110,19 @@ def _init_pam_build(X, n_clusters, dist_func):
 
 
 def _init_bandit_build(X, n_clusters, dist_func, verbose):
+    batchsize = 100
+    centers, D = _find_first_medoid(X, n_clusters, dist_func, batchsize, verbose)
+    centers = _find_remaining(X, n_clusters, dist_func, batchsize, centers, D, verbose)
+    return centers
+
+
+def _find_first_medoid(X, n_clusters, dist_func, batchsize, verbose):
     """ BANDIT BUILD routine for intialization
         Recast as a stochastic estimation problem
         Run time O(nlogn)
         https://arxiv.org/pdf/2006.06856.pdf
-        S_tar = X \ M_el , S_ref = X , and g() = g
     """
     n_samples = X.shape[0]
-    batchsize = 100
     delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
 
     centers = np.zeros((n_clusters), dtype="int")
@@ -168,19 +159,20 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
 
         C_x = ci_scale * sigma_x
         ucb = mu_x + C_x
-        idx = np.argmin(ucb)
+        # idx = np.argmin(ucb)
         lcb_target = mu_x - C_x
 
         ucb_best = ucb.min()
         solution_ids = np.where(lcb_target <= ucb_best)[0]
-        print("debug med - ", solution_ids.shape[0], ucb_best, n_used_ref)
+        if verbose:
+            print("initial medoid - ", solution_ids.shape[0], ucb_best, n_used_ref)
         n_used_ref = n_used_ref + batchsize
 
     if solution_ids.shape[0] == 1:
         # save the single sample as a medoid (either keep index, or find index of sample)
         centers[i] = solution_ids  # probably a type error
         d = cdist(X, X[solution_ids, :].reshape(1, -1), metric=dist_func).squeeze()
-        d_best = np.copy(d).reshape(-1, 1)
+        D = np.copy(d).reshape(-1, 1)
     else:  # this is fastPam build - with far fewer pts to evaluate
         # we have more than one candidate - so lets check which one is best
         td = float("inf")
@@ -192,8 +184,13 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
                 centers[i] = j
                 D = d.reshape(-1, 1)
     print(f"Found first medoid = {centers[0]}")
+    return centers, D
 
+
+def _find_remaining(X, n_clusters, dist_func, batchsize, centers, D, verbose):
     # find the remaining medoids
+    n_samples = X.shape[0]
+    delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
     print("Initializing other medoids - ")
     for i in range(1, n_clusters):
         td = float("inf")
@@ -227,7 +224,6 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
             # Remove pts that are unlikely to be a solution
             C_x = ci_scale * sigma_x
             ucb = mu_x + C_x
-            idx = np.argmin(ucb)
 
             # check if LCB of target is <= UCB of current best
             lcb_target = mu_x - C_x
@@ -240,20 +236,18 @@ def _init_bandit_build(X, n_clusters, dist_func, verbose):
                     solution_ids = np.delete(solution_ids, ic)
 
             n_used_ref = n_used_ref + batchsize
-        #
+
         # finish search over the remaining candidates
-        #
         if verbose:
             print(
                 f"Final eval with candidates = {solution_ids.shape[0]}"
             )  # , {solution_ids}")
         if solution_ids.shape[0] == 1:
-            # save the single sample as a medoid (either keep index, or find index of sample)
+            # save the single sample as a medoid 
             centers[i] = solution_ids  # probably a type error
             d = cdist(X, X[solution_ids, :].reshape(1, -1), metric=dist_func).squeeze()
             d_best = np.copy(d).reshape(-1, 1)
         else:  # this is fastPam build - with far fewer pts to evaluate
-            # we have more than one candidate - so lets check which one is best
             centers[i], d_best = search_singles(X, solution_ids, dist_func, d_nearest)
         D = np.concatenate((D, d_best), axis=1)
         print("\t updated centers - ", centers)
@@ -268,7 +262,6 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
         Recast as a stochastic estimation problem
         Run time O(nlogn)
         https://arxiv.org/pdf/2006.06856.pdf
-        S_tar = M x (X \ M) , S_ref = X , and g() = K_jih
     """
     done = False
     n_samples = X.shape[0]
@@ -361,7 +354,7 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
             idx = np.argmin(ucb)
             ucb_best = ucb.min()
 
-            # this is the approach written up in paper 
+            # this is the approach written up in paper
             # idx = np.argmin(tmp_mu)
             # mu_y = tmp_mu[idx]
             # sigma_y = tmp_sigma[idx]
@@ -432,6 +425,7 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
         # our best swap would degrade the clustering (min Tih > 0)
         current_iteration = current_iteration + 1
     return centers
+
 
 def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
     done = False
@@ -506,8 +500,8 @@ def _assign_pts_to_medoids(X, centers_id, dist_func):
     return members, dist_mat
 
 
-def _loss(x):
-    D = squareform(pdist(x_in_cluster, metric=dist_func))
+def _loss(x, dist_func):
+    D = squareform(pdist(x, metric=dist_func))
     loss = np.sum(D, axis=1)
     id = np.argmin(loss)
     return id, loss
@@ -535,7 +529,7 @@ def _get_cost(X, centers_id, dist_func):
     return members, costs, np.sum(costs), dist_mat
 
 
-def _naive_swap(X, centers, dist_func, max_iter, tol, verbose):
+def _naive_swap(X, centers, dist_func, max_iter, tol, verbose):  # noqa:C901
     n_samples, _ = X.shape
     members, costs, tot_cost, dist_mat = _get_cost(X, centers, dist_func)
 
@@ -620,7 +614,7 @@ class KMedoids:
         tol=0.0001,
         init_medoids=None,
         swap_medoids=None,
-        verbose=True,
+        verbose=False,
     ):
         self.n_clusters = n_clusters
         self.dist_func = dist_func
@@ -745,7 +739,7 @@ class KMedoids:
         max_iter=1000,
         tol=0.001,
         verbose=True,
-    ):
+    ):  # noqa:C901
         """Runs kmedoids algorithm with custom dist_func.
 
         Returns:
