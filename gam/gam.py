@@ -81,13 +81,11 @@ class GAM:
         self.swap_medoids = swap_medoids
 
         self.k = k
-        # self.init_medoids = init_medoids
         self.max_iter = max_iter
         self.tol = tol
         self.verbose = verbose
 
         self.attributions = None
-        # self.normalized_attributions = None
         self.use_normalized = use_normalized
         self.clustering_attributions = None
         self.feature_labels = None
@@ -180,7 +178,6 @@ class GAM:
         explanations = []
 
         for center_index in centers:
-            # explanation_weights = self.normalized_attributions[center_index]
             explanation_weights = self.clustering_attributions[center_index]
             explanations.append(list(zip(self.feature_labels, explanation_weights)))
         return explanations
