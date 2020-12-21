@@ -1,5 +1,5 @@
 """
-Integration test taking in csv of local attributions 
+Integration test taking in csv of local attributions
 and producing csv of global attributions
 """
 
