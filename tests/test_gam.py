@@ -7,9 +7,55 @@ import glob
 import os
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from gam import gam
+
+
+def test_read_df_or_list():
+    # preprocessing
+    df = pd.read_csv("tests/test_attributes.csv")
+    att_list = df.values.tolist()
+    feat_labels_list = df.columns.tolist()
+
+    att_arr = np.asarray(df.values.tolist())
+    feat_labels_arr = np.asarray(df.columns.tolist())
+
+    # Testing DataFrame
+    g_df = gam.GAM(attributions=df)
+    g_df.generate()
+
+    assert hasattr(g_df, "attributions")
+    assert g_df.attributions.shape == (4, 3)
+
+    assert hasattr(g_df, "feature_labels")
+    assert g_df.feature_labels == ["a1", "a2", "a3"]
+
+    # Testing lists
+    g_list = gam.GAM(attributions=att_list, feature_labels=feat_labels_list)
+    g_list.generate()
+
+    assert hasattr(g_list, "attributions")
+    assert g_list.attributions.shape == (4, 3)
+
+    assert hasattr(g_list, "feature_labels")
+    assert g_list.feature_labels == ["a1", "a2", "a3"]
+    
+    # Testing numpy arrays
+    g_arr = gam.GAM(attributions=att_arr, feature_labels=feat_labels_arr)
+    g_arr.generate()
+
+    assert hasattr(g_arr, "attributions")
+    assert g_arr.attributions.shape == (4, 3)
+
+    assert hasattr(g_arr, "feature_labels")
+    assert g_arr.feature_labels == ["a1", "a2", "a3"]
+    
+    # Testing failure
+    with pytest.raises(ValueError):
+        g_fail = gam.GAM(attributions=att_arr)
+        g_fail.generate()
 
 
 def test_read_csv():

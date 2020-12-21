@@ -7,7 +7,7 @@ This implementation is based on "[Global Explanations for Neural Networks](https
 
 ## Installation
 ```sh
-python3 -m pip install git+https://github.com/capitalone/global-attribution-mapping.git
+python3 -m pip install gam
 ```  
 ## Get Started
 First generate local attributions using your favorite technique, then:
@@ -15,6 +15,7 @@ First generate local attributions using your favorite technique, then:
 ```Python
 >>> from gam.gam import GAM
 >>> # for a quick example use `attributions_path="tests/test_attributes.csv"`
+>>> # Input/Output: csv (columns: features, rows: local/global attribution)
 >>> gam = GAM(attributions_path="<path_to_your_attributes>.csv", distance="spearman", k=2)
 >>> gam.generate()
 >>> gam.explanations
@@ -32,33 +33,11 @@ First generate local attributions using your favorite technique, then:
 # bar chart of feature importance with subpopulation size
 ```
 
-# Acknowledgements
-Thank you to Paul Zeng for his contribution to the implementation and valuable feedback.
-
-# Development
-* `Python 3.7`, `Pytest`, `requirements.txt` for dependencies
-* Branching: master is protected (need one other reviewer to merge)
-* Input/Output: csv (columns: features, rows: local/global attribution)
-* Underlying data structures: `numpy arrays`
-
 ### Tests
 To run tests:
 ```bash
 $ python -m pytest tests/
 ```
-
-### MVP
-* assume local attributions are given
-* K is a specified parameter
-* accompany csv output with a simple visualization showing top 5 clusters and their top 5 features
-* accelerated distance calc using merge sort (from O(n^2) to O(nlogn))
-
-### Post-MVP
-* optimize k based on silouhette score
-* generate local attributions (using appropriate local method)
-
-
-
 
 ## Contributors
 

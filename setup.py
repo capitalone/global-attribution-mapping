@@ -1,6 +1,6 @@
 # SPDX-Copyright: Copyright (c) Capital One Services, LLC
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2018 Capital One Services, LLC
+# Copyright 2020 Capital One Services, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,10 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from setuptools import setup
+import os
+from io import open
 
-import os 
-from io import open 
+from setuptools import setup
 
 CURR_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -27,13 +27,16 @@ with open(os.path.join(CURR_DIR, "README.md"), encoding="utf-8") as file_open:
 DESCRIPTION = 'Global Explanations for Deep Neural Networks'
 
 setup(
-    name='GAM',
-    version='0.0.1',
+    name='gam',
+    version='1.0.0',
     packages=['gam', 'tests'],
     maintainer='Brian Barr',
     maintainer_email='brian.barr@capitalone.com',
+    url="https://github.com/capitalone/global-attribution-mapping",
+    classifiers=["Programming Language :: Python :: 3"],
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
+    long_description_content_type='text/markdown',
     license='Apache License 2.0',
     install_requires=[
         "matplotlib > 2.2.0",
@@ -41,4 +44,5 @@ setup(
         "scikit-learn > 0.21.3",
         "numpy > 1.17.2",
     ],
+    python_requires=">=3.6",
 )
