@@ -8,12 +8,11 @@ TODO:
 
 import csv
 import logging
-import math
 from collections import Counter
 
 import matplotlib.pylab as plt
 import numpy as np
-from sklearn.metrics import pairwise_distances, silhouette_score
+# from sklearn.metrics import pairwise_distances, silhouette_score
 
 from gam.clustering import KMedoids
 from gam.kendall_tau_distance import mergeSortDistance
