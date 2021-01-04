@@ -118,6 +118,8 @@ class GAM:
                 self.feature_labels = self.feature_labels
             elif isinstance(self.feature_labels, np.ndarray):
                 self.feature_labels = self.feature_labels.tolist()
+            elif isinstance(self.feature_labels, da.Array):
+                self.feature_labels = self.feature_labels.compute().tolist()
         else:
             self.attributions = None
             self.feature_labels = None
