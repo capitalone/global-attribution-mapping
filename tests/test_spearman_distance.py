@@ -2,6 +2,7 @@ from gam.spearman_distance  import pairwise_spearman_distance_matrix
 from gam.spearman_distance import (spearman_squared_distance,
                                    spearman_squared_distance_legacy)
 import numpy as np
+from dask.distributed import Client
 
 
 def test_spearman_symmetry():

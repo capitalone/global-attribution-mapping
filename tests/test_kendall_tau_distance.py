@@ -3,7 +3,9 @@ from gam.kendall_tau_distance import mergeSortDistance
 
 from gam.kendall_tau_distance import pairwise_distance_matrix
 from sklearn.metrics import pairwise_distances
+from dask.distributed import Client
 
+import numpy as np
 
 def test_ktau_symmetry():
     """Checks symmetry holds for distance metric"""
