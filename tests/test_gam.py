@@ -12,6 +12,10 @@ import pytest
 
 from gam import gam
 
+import dask.array as da
+import dask.dataframe as dd
+
+from dask.distributed import Client
 
 def test_read_df_or_list():
     # preprocessing
@@ -21,6 +25,32 @@ def test_read_df_or_list():
 
     att_arr = np.asarray(df.values.tolist())
     feat_labels_arr = np.asarray(df.columns.tolist())
+
+    client = Client(memory_limit="auto")
+    ddf = dd.read_csv("tests/test_attributes.csv")
+    dask_att_arr = da.from_array(att_list)
+    dask_feat_labels_arr = da.from_array(feat_labels_list)
+
+    # Testing dask DataFrame
+    dask_df = gam.GAM(attributions=ddf)
+    dask_df.generate()
+
+    assert hasattr(dask_df, "attributions")
+    assert dask_df.attributions.shape == (4, 3)
+
+    assert hasattr(dask_df, "feature_labels")
+    assert dask_df.feature_labels == ["a1", "a2", "a3"]
+
+    # Testing dask array
+    dask_list = gam.GAM(attributions=dask_att_arr, feature_labels=dask_feat_labels_arr)
+    dask_list.generate()
+
+    assert hasattr(dask_list, "attributions")
+    assert dask_list.attributions.shape == (4, 3)
+
+    assert hasattr(dask_list, "feature_labels")
+    assert dask_list.feature_labels == ["a1", "a2", "a3"]
+    client.close()
 
     # Testing DataFrame
     g_df = gam.GAM(attributions=df)

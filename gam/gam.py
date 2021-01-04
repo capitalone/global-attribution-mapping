@@ -107,16 +107,16 @@ class GAM:
         elif isinstance(self.attributions, pd.DataFrame):
             self.feature_labels = self.attributions.columns.tolist()
             self.attributions = np.asarray(self.attributions.values.tolist())
-        elif isinstance(self.attributions, (np.ndarray, list)) or isinstance(self.feature_labels, (np.ndarray, list)):
+        elif isinstance(self.attributions, (np.ndarray, list)) or isinstance(self.attributions, da.Array) or isinstance(self.feature_labels, (np.ndarray, list)) or isinstance(self.feature_labels, da.Array):
             if (isinstance(self.attributions, (np.ndarray, list)) and self.feature_labels is None) or (self.attributions is None and self.feature_labels is not None):
                 raise ValueError("You must have both 'attributions' and 'feature_labels' if 'attributions' is not a dataframe.")
             elif isinstance(self.attributions, list):
                 self.attributions = np.asarray(self.attributions)
-            elif isinstance(self.attributions, (np.ndarray, da.array)):
+            elif isinstance(self.attributions, (np.ndarray, da.Array)):
                 self.attributions = self.attributions
             if isinstance(self.feature_labels, list):
                 self.feature_labels = self.feature_labels
-            elif isinstance(self.feature_labels, (np.ndarray, da.array)):
+            elif isinstance(self.feature_labels, np.ndarray):
                 self.feature_labels = self.feature_labels.tolist()
         else:
             self.attributions = None

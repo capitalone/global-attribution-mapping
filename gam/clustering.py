@@ -36,7 +36,7 @@ def _get_cost(X, centers_id, dist_func):
         dist_mat = pairwise_distances(
             X, X[centers_id, :], metric=dist_func, n_jobs=-1
         )
-    else:
+    elif isinstance(X, da.Array):
         d = dask_pairwise_distances(
             X, np.asarray(X[centers_id, :]), metric=dist_func, n_jobs=-1
         )
