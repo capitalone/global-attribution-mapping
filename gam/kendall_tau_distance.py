@@ -147,17 +147,16 @@ def mergeSortDistance(r1, r2):
     return dist
 
 
-def pairwise_distance_matrix(rankings):
+def pairwise_distance_matrix(rankings, dask=False):
     from sklearn.metrics import pairwise_distances
     import numpy as np
     from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
     import dask.array as da
-    if isinstance(rankings, np.ndarray):
-        D = pairwise_distances( rankings, metric=mergeSortDistance)
-        return D
-    elif isinstance(rankings, da.array):
-        D = dask_pairwise_distances(rankings, metric=mergeSortDistance)
-        return D
+    if dask:
+        D = dask_pairwise_distances(da.array(rankings), rankings, metric=mergeSortDistance)
+    else:
+        D = pairwise_distances(rankings, rankings, metric=mergeSortDistance)
+    return D
 
 def pairwise_distance_matrix_legacy(rankings):
     """

@@ -56,7 +56,7 @@ def spearman_squared_distance_legacy(r_1, r_2):
     return distance
 
 
-def pairwise_spearman_distance_matrix(rankings):
+def pairwise_spearman_distance_matrix(rankings, dask=False):
     """Returns Spearman Distances for the provided rankings
 
     Args:
@@ -65,14 +65,11 @@ def pairwise_spearman_distance_matrix(rankings):
     Returns:
         [array[array]]: Spearman Distance Matrix
     """
-    if isinstance(rankings, np.ndarray):
-        return pairwise_distances(
-            rankings, metric=spearman_squared_distance
-        )
-    elif isinstance(rankings, da.array):
-        return dask_pairwise_distances(
-            rankings, metric=spearman_squared_distance
-        )
+    if dask:
+        D = dask_pairwise_distances(da.array(rankings), rankings, metric=spearman_squared_distance)
+    else:
+        D = pairwise_distances(rankings, rankings, metric=spearman_squared_distance)
+    return D
 
 def pairwise_spearman_distance_matrix_legacy(rankings):
     """
