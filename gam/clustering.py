@@ -5,12 +5,13 @@ Adaped from https://raw.githubusercontent.com/shenxudeu/K_Medoids/master/k_medoi
 TODO:
 - refactor and test components of implementation
 """
+import dask.array as da
 from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import pairwise_distances
-
+from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
 
 def _get_init_centers(n_clusters, n_samples):
     """Return random points as initial centers"""
@@ -31,9 +32,16 @@ def _get_cost(X, centers_id, dist_func):
     """Return total cost and cost of each cluster"""
     dist_mat = np.zeros((len(X), len(centers_id)))
     # compute distance matrix
-    dist_mat = pairwise_distances(
-        X, X[centers_id, :], metric=dist_func, n_jobs=-1
-    )
+    if isinstance(X, np.ndarray):
+        dist_mat = pairwise_distances(
+            X, X[centers_id, :], metric=dist_func, n_jobs=-1
+        )
+    else:
+        d = dask_pairwise_distances(
+            X, np.asarray(X[centers_id, :]), metric=dist_func, n_jobs=-1
+        )
+        dist_mat = d.compute()
+
 
     mask = np.argmin(dist_mat, axis=1)
     members = np.zeros(len(X))
@@ -172,3 +180,4 @@ class KMedoids:
 
     def predict(self, X):
         raise NotImplementedError()
+

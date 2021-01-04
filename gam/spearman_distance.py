@@ -8,6 +8,8 @@ TODO:
 """
 
 from sklearn.metrics import pairwise_distances
+import dask.array as da
+from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
 import numpy as np
 
 
@@ -63,10 +65,14 @@ def pairwise_spearman_distance_matrix(rankings):
     Returns:
         [array[array]]: Spearman Distance Matrix
     """
-    return pairwise_distances(
-        rankings, metric=spearman_squared_distance
-    )
-
+    if isinstance(rankings, np.ndarray):
+        return pairwise_distances(
+            rankings, metric=spearman_squared_distance
+        )
+    elif isinstance(rankings, da.array):
+        return dask_pairwise_distances(
+            rankings, metric=spearman_squared_distance
+        )
 
 def pairwise_spearman_distance_matrix_legacy(rankings):
     """
@@ -85,3 +91,4 @@ def pairwise_spearman_distance_matrix_legacy(rankings):
             row.append(distance)
         D.append(row)
     return D
+

@@ -5,6 +5,8 @@ TODO:
 - add integration tests
 - expand to use other distance metrics
 """
+import dask.array as da
+import dask.dataframe as dd
 
 import csv
 import logging
@@ -31,8 +33,8 @@ class GAM:
     Args:
         k (int): number of clusters and centroids to form, default=2
         attributions_path (str): path for csv containing local attributions
-        attributions_df (pd.DataFrame, np.array, list): in-memory dataframe holding local attributions
-        feature_labels
+        attributions_df (pd.DataFrame, dd.DataFrame, np.array, da.array, list): in-memory dataframe holding local attributions
+        feature_labels (np.array, da.array, list): in-memory dataframe holding feature labels
         cluster_method: None, or callable, default=None
             None - use GAM library routines for k-medoids clustering
             callable - user provided external function to perform clustering
@@ -55,9 +57,11 @@ class GAM:
         scoring_method=None,
         max_iter=100,
         tol=1e-3,
+        partitions=4,
     ):
 
         self.attributions_path = attributions_path
+        self.partitions = partitions
 
         self.attributions = attributions
         self.feature_labels = feature_labels
@@ -94,25 +98,27 @@ class GAM:
         Converts attributions to numpy array and feature labels to a list if a pandas dataframe, numpy array, or list is passed in,
 
         Returns
-            attributions (numpy.ndarray): for example, [(.2, .8), (.1, .9)]
-            feature labels: ("height", "weight")
+            attributions (numpy.ndarray or dask.array): for example, [(.2, .8), (.1, .9)]
+            feature labels (list): ("height", "weight")
         """
-        if isinstance(self.attributions, pd.DataFrame):
+        if isinstance(self.attributions, dd.DataFrame):
+            self.feature_labels = self.attributions.columns.tolist()
+            self.attributions = self.attributions.to_dask_array(lengths=True)
+        elif isinstance(self.attributions, pd.DataFrame):
             self.feature_labels = self.attributions.columns.tolist()
             self.attributions = np.asarray(self.attributions.values.tolist())
         elif isinstance(self.attributions, (np.ndarray, list)) or isinstance(self.feature_labels, (np.ndarray, list)):
             if (isinstance(self.attributions, (np.ndarray, list)) and self.feature_labels is None) or (self.attributions is None and self.feature_labels is not None):
                 raise ValueError("You must have both 'attributions' and 'feature_labels' if 'attributions' is not a dataframe.")
-            if isinstance(self.attributions, list):
+            elif isinstance(self.attributions, list):
                 self.attributions = np.asarray(self.attributions)
-            elif isinstance(self.attributions, np.ndarray):
+            elif isinstance(self.attributions, (np.ndarray, da.array)):
                 self.attributions = self.attributions
             if isinstance(self.feature_labels, list):
                 self.feature_labels = self.feature_labels
-            elif isinstance(self.feature_labels, np.ndarray):
+            elif isinstance(self.feature_labels, (np.ndarray, da.array)):
                 self.feature_labels = self.feature_labels.tolist()
         else:
-            print('should not be here')
             self.attributions = None
             self.feature_labels = None
 
@@ -158,6 +164,7 @@ class GAM:
                 max_iter=self.max_iter,
                 tol=self.tol,
             )
+
             clusters.fit(self.clustering_attributions, verbose=False)
 
             self.subpopulations = clusters.members
@@ -247,3 +254,4 @@ class GAM:
         self._cluster()
         if self.scoring_method:
             self.score = self.scoring_method(self)
+
