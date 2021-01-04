@@ -61,6 +61,7 @@ def pairwise_spearman_distance_matrix(rankings, dask=False):
 
     Args:
         rankings (numpy.array): Normalized Attributions
+        dask (boolean): whether or not to use dask's implementation
 
     Returns:
         [array[array]]: Spearman Distance Matrix
@@ -88,4 +89,3 @@ def pairwise_spearman_distance_matrix_legacy(rankings):
             row.append(distance)
         D.append(row)
     return D
-

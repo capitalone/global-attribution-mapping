@@ -166,7 +166,6 @@ class GAM:
                 max_iter=self.max_iter,
                 tol=self.tol,
             )
-
             clusters.fit(self.clustering_attributions, verbose=False)
 
             self.subpopulations = clusters.members
@@ -256,4 +255,3 @@ class GAM:
         self._cluster()
         if self.scoring_method:
             self.score = self.scoring_method(self)
-
