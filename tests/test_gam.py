@@ -203,3 +203,17 @@ def test_plotting_2attributes():
     assert len(output) > 0
     for ofile in output:
         os.remove(ofile)
+
+def test_dask_vs_numpy():
+    client = Client(memory_limit="auto")
+    ddf = dd.read_csv("tests/test_attributes.csv")
+    dask_df = gam.GAM(attributions=ddf)
+    dask_df.generate()
+    client.close()
+
+    df = pd.read_csv("tests/test_attributes.csv")
+    g_df = gam.GAM(attributions=df)
+    g_df.generate()
+
+    assert dask_df.attributions == g_df.attributions
+    assert dask_df.feature_labels == g_df.feature_labels

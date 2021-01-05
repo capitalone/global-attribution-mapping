@@ -48,7 +48,7 @@ class GAM:
     def __init__(
         self,
         k=2,
-        attributions_path="local_attributions.csv",
+        attributions_path=None,
         attributions=None,
         feature_labels=None,
         cluster_method=None,
@@ -243,11 +243,10 @@ class GAM:
 
     def generate(self):
         """Clusters local attributions into subpopulations with global explanations"""
-        if self.attributions is not None:
-            self._read_df_or_list()
-        else:
-            # we need to read in attributions from a CSV file, since we don't have any in memory
+        if self.attributions_path is not None:
             self._read_local()
+        else:
+            self._read_df_or_list()
         if self.use_normalized:
             self.clustering_attributions = GAM.normalize(self.attributions)
         else:
