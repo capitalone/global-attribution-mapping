@@ -7,13 +7,16 @@ TODO:
 - add tests
 """
 
-from sklearn.metrics import pairwise_distances
 import numpy as np
+from sklearn.metrics import pairwise_distances
+
+from numba import jit
 
 
+@jit
 def spearman_squared_distance(a, b):
     """
-    Computes weighted Spearmans's Rho squared distance.  Runs in O(n).  
+    Computes weighted Spearmans's Rho squared distance.  Runs in O(n).
     Numpy for efficiency.
 
     Args:
@@ -26,7 +29,7 @@ def spearman_squared_distance(a, b):
     order_penalty = (a - b) ** 2
     weight = np.multiply(a, b)
 
-    distance = 1e4 * np.sum(np.multiply(order_penalty, weight))
+    distance = 1e4 * abs(np.sum(np.multiply(order_penalty, weight)))
     return distance
 
 
@@ -63,9 +66,7 @@ def pairwise_spearman_distance_matrix(rankings):
     Returns:
         [array[array]]: Spearman Distance Matrix
     """
-    return pairwise_distances(
-        rankings, metric=spearman_squared_distance
-    )
+    return pairwise_distances(rankings, metric=spearman_squared_distance)
 
 
 def pairwise_spearman_distance_matrix_legacy(rankings):
