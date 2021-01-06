@@ -32,7 +32,7 @@ class GAM:
     Args:
         k (int): number of clusters and centroids to form, default=2
         attributions_path (str): path for csv containing local attributions
-        attributions_df (pd.DataFrame, dd.DataFrame, np.array, da.array, list): in-memory dataframe holding local attributions
+        attributions (pd.DataFrame, dd.DataFrame, np.array, da.array, list): in-memory dataframe holding local attributions
         feature_labels (np.array, da.array, list): in-memory dataframe holding feature labels
         cluster_method: None, or callable, default=None
             None - use GAM library routines for k-medoids clustering
