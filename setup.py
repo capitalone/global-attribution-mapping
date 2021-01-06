@@ -28,7 +28,7 @@ DESCRIPTION = 'Global Explanations for Deep Neural Networks'
 
 setup(
     name='gam',
-    version='0.0.1',
+    version='1.0.0',
     packages=['gam', 'tests'],
     maintainer='Brian Barr',
     maintainer_email='brian.barr@capitalone.com',
@@ -44,4 +44,5 @@ setup(
         "scikit-learn > 0.21.3",
         "numpy > 1.17.2",
     ],
+    python_requires=">=3.6",
 )

@@ -4,7 +4,9 @@ from gam.kendall_tau_distance import mergeSortDistance
 from gam.kendall_tau_distance import pairwise_distance_matrix
 from sklearn.metrics import pairwise_distances
 from dask.distributed import Client
-
+from gam.kendall_tau_distance import (ktau_weighted_distance,
+                                      mergeSortDistance,
+                                      pairwise_distance_matrix)
 import numpy as np
 
 def test_ktau_symmetry():
@@ -68,4 +70,4 @@ def test_ktau_accuracy():
     r1 = [0.27, 0.24, 0.26, 0.23]
     r2 = [0.05, 0.2, 0.7, 0.05]
     assert ktau_weighted_distance(r1, r2) == 0.0031050000000000006
-    assert mergeSortDistance(r1, r2)      == 0.0031050000000000006
+    assert mergeSortDistance(r1, r2) == 0.0031050000000000006

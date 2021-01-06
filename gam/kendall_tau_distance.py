@@ -35,7 +35,7 @@ def ktau_weighted_distance(r_1, r_2):
 
 
 def prep_data(X, Y):
-    '''
+    """
     Data preprocessing step prior to doing merge sort/discovery of inversions
     1. Zip together x, y, and integer index
     2 Sort on X, and in the case of ties, sort on Y
@@ -46,24 +46,24 @@ def prep_data(X, Y):
         X, Y - two 1D array of weighted rankings
     Returns:
         yRankings - list of tuples containing
-    '''
-    assert(len(X) == len(Y))
+    """
+    assert len(X) == len(Y)
 
     originalInd = list(range(len(X)))
     zipRankings = list(zip(X, Y, originalInd))
-#    print('zipped rankings - ', zipRankings)
+    #    print('zipped rankings - ', zipRankings)
 
     # sort first by X, then by Y (secondary sort if items in X are equal)
-#    zipRankings.sort(key=lambda item: (item[0], item[1]))
+    #    zipRankings.sort(key=lambda item: (item[0], item[1]))
     zipRankings.sort(key=lambda item: (item[0]))
-#    print('zipped sorted - ', zipRankings)
+    #    print('zipped sorted - ', zipRankings)
     # since X is sorted now (see above) - we can strip it off, and concentrate on (Y,index)
     yRankings = [(aTuple[1], aTuple[2]) for aTuple in zipRankings]
     return yRankings
 
 
 def mergeSortInversions(arr, indList):
-    '''
+    """
     Find inversions in 1D array of weighted rankings
     Inputs:  arr is 1D array of tuples (y_i, ind)
              indList - list of pairs of indices (used to get weights in distance calc)
@@ -71,7 +71,7 @@ def mergeSortInversions(arr, indList):
         c - sorted array (not used, could clean up)
         inversions - interger count of inverted pairs
         indList - list of tuples containing indices (based on original list) of inverted pairs
-    '''
+    """
 
     if len(arr) == 1:
         return arr, 0, indList
@@ -92,10 +92,10 @@ def mergeSortInversions(arr, indList):
             tmpInvList = []
         else:
             c.append(b[j])
-            inversions += (len(a) - i)
+            inversions += len(a) - i
             tmpInvList = [(a[i][1], b[j][1])]
-#            print('inversion - i=:', i, ' j=', j, 'inv=', inversions, ' ind=', indList,
-#                  'arr=', arr, a, b, 'a=', a[i][0], 'b=', b[j][0], 'tmpList = ', tmpInvList)
+            #            print('inversion - i=:', i, ' j=', j, 'inv=', inversions, ' ind=', indList,
+            #                  'arr=', arr, a, b, 'a=', a[i][0], 'b=', b[j][0], 'tmpList = ', tmpInvList)
 
             j += 1
             indList.extend(tmpInvList)
@@ -106,17 +106,17 @@ def mergeSortInversions(arr, indList):
 
 
 def distance_calc(x, y, indList):
-    '''
+    """
     For use with merge sort discovered inversions
     Inputs:
        x &  y - 1D arrays of weights
        indList - list of tuples containing pairs of inversions
      Returns:
        d: calculated distance (scalar float)
-     '''
-#    print('input x = ', x)
-#    print(' input y = ', y)
-#    print('input indList - ', indList)
+     """
+    #    print('input x = ', x)
+    #    print(' input y = ', y)
+    #    print('input indList - ', indList)
     d = 0
     for aTuple in indList:
         ind0 = aTuple[0]
@@ -128,22 +128,22 @@ def distance_calc(x, y, indList):
 
 
 def mergeSortDistance(r1, r2):
-    '''
+    """
     Utility function wrapping preprocessing, merge sort, and distance calc into 1 routine
     Inputs:
         r1, r2 - 1D arrays of rankings
     Returns:
         dist - kendall-tau distance
         inv - number of inversions found
-    '''
+    """
     y_to_rank = prep_data(r1, r2)
-#    print('List to sort - ', y_to_rank)
+    #    print('List to sort - ', y_to_rank)
     indList = []
     c, inv, indList = mergeSortInversions(y_to_rank, indList)
     dist = distance_calc(r1, r2, indList)
-#    print()
-#    print('Sorted list - ', c)
-#    print('Index list - ', indList)
+    #    print()
+    #    print('Sorted list - ', c)
+    #    print('Index list - ', indList)
     return dist
 
 
@@ -157,6 +157,7 @@ def pairwise_distance_matrix(rankings, dask=False):
     else:
         D = pairwise_distances(rankings, rankings, metric=mergeSortDistance)
     return D
+
 
 def pairwise_distance_matrix_legacy(rankings):
     """

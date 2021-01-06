@@ -10,7 +10,6 @@ import dask.dataframe as dd
 
 import csv
 import logging
-import math
 from collections import Counter
 
 import matplotlib.pylab as plt
@@ -38,11 +37,19 @@ class GAM:
         cluster_method: None, or callable, default=None
             None - use GAM library routines for k-medoids clustering
             callable - user provided external function to perform clustering
+        Using k-medoids from the library:
+            We provide slow & exact methods (e.g. PAM) and faster approximate methods
+            (e.g. Bandit-PAM) which can be specified by:
+        init_medoids: {'None', array} - how to pick initial medoids
+            None - use random selection
+            array - (features * k) representing initial medoids
+        swap_medoids: {'None', callable} - defaults to naive k-medoids
         distance: {‘spearman’, ‘kendall’}  distance metric used to compare attributions, default='spearman'
         use_normalized (boolean): whether to use normalized attributions in clustering, default='True'
         scoring_method (callable) function to calculate scalar representing goodness of fit for a given k, default=None
         max_iter (int): maximum number of iteration in k-medoids, default=100
         tol (float): tolerance denoting minimal acceptable amount of improvement, controls early stopping, default=1e-3
+        seed (int): seed for numpy random state, default=None
     """
 
     def __init__(
@@ -57,11 +64,13 @@ class GAM:
         scoring_method=None,
         max_iter=100,
         tol=1e-3,
-        partitions=4,
+        init_medoids=None,
+        swap_medoids=None,
+        verbose=False,
+        seed=None,
     ):
 
         self.attributions_path = attributions_path
-        self.partitions = partitions
 
         self.attributions = attributions
         self.feature_labels = feature_labels
@@ -82,9 +91,20 @@ class GAM:
                 distance
             )  # assume this is  metric listed in pairwise.PAIRWISE_DISTANCE_FUNCTIONS
 
+        self.scoring_method = scoring_method
+        self.init_medoids = init_medoids
+        self.swap_medoids = swap_medoids
+
         self.k = k
         self.max_iter = max_iter
         self.tol = tol
+        self.verbose = verbose
+
+        self.attributions = None
+        self.use_normalized = use_normalized
+        self.clustering_attributions = None
+        self.feature_labels = None
+
 
         self.subpopulations = None
         self.subpopulation_sizes = None
@@ -93,6 +113,9 @@ class GAM:
         self.scoring_method = scoring_method
         self.score = None
 
+        if seed:
+            np.random.seed(seed=seed)
+            
     def _read_df_or_list(self):
         """
         Converts attributions to numpy array and feature labels to a list if a pandas dataframe, numpy array, or list is passed in,
@@ -165,8 +188,10 @@ class GAM:
                 dist_func=self.distance_function,
                 max_iter=self.max_iter,
                 tol=self.tol,
+                init_medoids=self.init_medoids,
+                swap_medoids=self.swap_medoids,
             )
-            clusters.fit(self.clustering_attributions, verbose=False)
+            clusters.fit(self.clustering_attributions, verbose=self.verbose)
 
             self.subpopulations = clusters.members
             self.subpopulation_sizes = GAM.get_subpopulation_sizes(clusters.members)
@@ -202,7 +227,6 @@ class GAM:
         explanations = []
 
         for center_index in centers:
-            # explanation_weights = self.normalized_attributions[center_index]
             explanation_weights = self.clustering_attributions[center_index]
             explanations.append(list(zip(self.feature_labels, explanation_weights)))
         return explanations
@@ -241,7 +265,7 @@ class GAM:
             if display:
                 plt.show()
 
-    def generate(self):
+    def generate(self, init_medoids):
         """Clusters local attributions into subpopulations with global explanations"""
         if self.attributions_path is not None:
             self._read_local()
