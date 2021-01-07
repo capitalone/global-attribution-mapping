@@ -34,8 +34,8 @@ def test_pairwise_distance_matrix():
     rankings = np.array([r1, r2, r3])
     D = pairwise_spearman_distance_matrix(rankings)
     # Testing dask
-    client = Client(memory_limit="auto")
-    D_dask = pairwise_spearman_distance_matrix(rankings, dask=True)
+    client = Client()
+    D_dask = pairwise_spearman_distance_matrix(da.from_array(rankings))
     client.close()
 
     assert D.all() == D_dask.all()
@@ -56,7 +56,5 @@ def test_spearman_accuracy():
 
     d1 = spearman_squared_distance(r1, r2)
     d2 = spearman_squared_distance_legacy(r2, r1)
-    print(d1)
-    print(d2)
     assert d1 == 363.37999999999994
     assert d2 == 363.37999999999994

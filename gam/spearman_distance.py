@@ -7,7 +7,7 @@ TODO:
 - add tests
 """
 
-from sklearn.metrics import pairwise_distances
+from sklearn.metrics import pairwise_distances as sklearn_pairwise_distances
 import dask.array as da
 from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
 import numpy as np
@@ -60,20 +60,20 @@ def spearman_squared_distance_legacy(r_1, r_2):
     return distance
 
 
-def pairwise_spearman_distance_matrix(rankings, dask=False):
+def pairwise_spearman_distance_matrix(rankings):
     """Returns Spearman Distances for the provided rankings
 
     Args:
-        rankings (numpy.array): Normalized Attributions
+        rankings (numpy.array, dask.array): Normalized Attributions
         dask (boolean): whether or not to use dask's implementation
 
     Returns:
         [array[array]]: Spearman Distance Matrix
     """
-    if dask:
-        D = dask_pairwise_distances(da.array(rankings), rankings, metric=spearman_squared_distance)
-    else:
-        D = pairwise_distances(rankings, rankings, metric=spearman_squared_distance)
+    if isinstance(rankings, da.Array):
+        D = dask_pairwise_distances(rankings, rankings, metric=spearman_squared_distance)
+    elif isinstance(rankings, np.ndarray):
+        D = sklearn_pairwise_distances(rankings, rankings, metric=spearman_squared_distance)
     return D
 
 def pairwise_spearman_distance_matrix_legacy(rankings):

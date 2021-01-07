@@ -26,30 +26,31 @@ def test_read_df_or_list():
     att_arr = np.asarray(df.values.tolist())
     feat_labels_arr = np.asarray(df.columns.tolist())
 
-    client = Client(memory_limit="auto")
+    client = Client()
     ddf = dd.read_csv("tests/test_attributes.csv")
+    ddf = ddf.repartition(npartitions=4)
     dask_att_arr = da.from_array(att_list)
     dask_feat_labels_arr = da.from_array(feat_labels_list)
 
     # Testing dask DataFrame
-    dask_df = gam.GAM(attributions=ddf)
-    dask_df.generate()
+    g_ddf = gam.GAM(attributions=ddf)
+    g_ddf.generate()
 
-    assert hasattr(dask_df, "attributions")
-    assert dask_df.attributions.shape == (4, 3)
+    assert hasattr(g_ddf, "attributions")
+    assert g_ddf.attributions.shape == (4, 3)
 
-    assert hasattr(dask_df, "feature_labels")
-    assert dask_df.feature_labels == ["a1", "a2", "a3"]
+    assert hasattr(g_ddf, "feature_labels")
+    assert g_ddf.feature_labels == ["a1", "a2", "a3"]
 
     # Testing dask array
-    dask_list = gam.GAM(attributions=dask_att_arr, feature_labels=dask_feat_labels_arr)
-    dask_list.generate()
+    g_dask_list = gam.GAM(attributions=dask_att_arr, feature_labels=dask_feat_labels_arr)
+    g_dask_list.generate()
 
-    assert hasattr(dask_list, "attributions")
-    assert dask_list.attributions.shape == (4, 3)
+    assert hasattr(g_dask_list, "attributions")
+    assert g_dask_list.attributions.shape == (4, 3)
 
-    assert hasattr(dask_list, "feature_labels")
-    assert dask_list.feature_labels == ["a1", "a2", "a3"]
+    assert hasattr(g_dask_list, "feature_labels")
+    assert g_dask_list.feature_labels == ["a1", "a2", "a3"]
     client.close()
 
     # Testing DataFrame
@@ -205,7 +206,7 @@ def test_plotting_2attributes():
         os.remove(ofile)
 
 def test_dask_vs_numpy():
-    client = Client(memory_limit="auto")
+    client = Client()
     ddf = dd.read_csv("tests/test_attributes.csv")
     dask_df = gam.GAM(attributions=ddf)
     dask_df.generate()

@@ -32,8 +32,8 @@ def test_pairwise_distance_matrix():
     D = pairwise_distance_matrix(rankings)
 
     # Testing dask
-    client = Client(memory_limit="auto")
-    D_dask = pairwise_distance_matrix(rankings, dask=True)
+    client = Client()
+    D_dask = pairwise_distance_matrix(da.from_array(rankings))
     client.close()
 
     assert D.all() == D_dask.all()
@@ -47,13 +47,13 @@ def test_pairwise_distance_matrix():
 
 
 def test_dask_pairwise_distance_matrix():
-    client = Client(memory_limit="auto")
+    client = Client()
     r1 = [0.05, 0.2, 0.7, 0.05]
     r2 = [0.23, 0.24, 0.26, 0.27]
     r3 = [0.22, 0.24, 0.26, 0.28]
     rankings = np.array([r1, r2, r3])
 
-    D = pairwise_distance_matrix(rankings, dask=True)
+    D = pairwise_distance_matrix(rankings)
     # check symmetry, within floating point rounding margin
     assert (D[0][1] - D[1][0]) < 1e-9
     # check diagonal is zero
