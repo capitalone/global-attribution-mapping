@@ -8,6 +8,7 @@ from gam.kendall_tau_distance import (ktau_weighted_distance,
                                       mergeSortDistance,
                                       pairwise_distance_matrix)
 import numpy as np
+import dask.array as da
 
 def test_ktau_symmetry():
     """Checks symmetry holds for distance metric"""

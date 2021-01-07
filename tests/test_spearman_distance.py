@@ -1,4 +1,5 @@
 import numpy as np
+import dask.array as da
 from dask.distributed import Client
 
 from gam.spearman_distance import (pairwise_spearman_distance_matrix,
