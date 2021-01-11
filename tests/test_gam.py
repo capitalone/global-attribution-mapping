@@ -208,13 +208,13 @@ def test_plotting_2attributes():
 def test_dask_vs_numpy():
     client = Client()
     ddf = dd.read_csv("tests/test_attributes.csv")
-    dask_df = gam.GAM(attributions=ddf)
-    dask_df.generate()
+    g_ddf = gam.GAM(attributions=ddf)
+    g_ddf.generate()
     client.close()
 
     df = pd.read_csv("tests/test_attributes.csv")
     g_df = gam.GAM(attributions=df)
     g_df.generate()
 
-    assert dask_df.attributions == g_df.attributions
-    assert dask_df.feature_labels == g_df.feature_labels
+    assert g_ddf.attributions == g_df.attributions
+    assert g_ddf.feature_labels == g_df.feature_labels
