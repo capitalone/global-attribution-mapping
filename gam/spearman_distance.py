@@ -11,7 +11,6 @@ from sklearn.metrics import pairwise_distances as sklearn_pairwise_distances
 import dask.array as da
 from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
 import numpy as np
-from sklearn.metrics import pairwise_distances
 
 from numba import jit
 

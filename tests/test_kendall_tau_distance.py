@@ -1,6 +1,3 @@
-from gam.kendall_tau_distance import ktau_weighted_distance
-from gam.kendall_tau_distance import mergeSortDistance
-
 from gam.kendall_tau_distance import pairwise_distance_matrix
 from sklearn.metrics import pairwise_distances
 from dask.distributed import Client
@@ -32,12 +29,6 @@ def test_pairwise_distance_matrix():
     rankings = np.array([r1, r2, r3])
     D = pairwise_distance_matrix(rankings)
 
-    # Testing dask
-    client = Client()
-    D_dask = pairwise_distance_matrix(da.from_array(rankings))
-    client.close()
-
-    assert D.all() == D_dask.all()
     # check symmetry, within floating point rounding margin
     assert (D[0][1] - D[1][0]) < 1e-9
     # check diagonal is zero
