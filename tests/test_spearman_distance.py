@@ -44,6 +44,17 @@ def test_pairwise_distance_matrix():
     assert D[1][2] < D[1][0]
 
 
+def test_spearman_accuracy():
+    """ Floating point accuracy test for testing faster calculation methods """
+    r1 = np.array([0.27, 0.24, 0.26, 0.23])
+    r2 = np.array([0.05, 0.2, 0.7, 0.05])
+
+    d1 = spearman_squared_distance(r1, r2)
+    d2 = spearman_squared_distance_legacy(r2, r1)
+    assert d1 == 363.37999999999994
+    assert d2 == 363.37999999999994
+
+
 def test_dask_pairwise_distance_matrix():
     r1 = np.array([0.05, 0.2, 0.7, 0.05])
     r2 = np.array([0.23, 0.24, 0.26, 0.27])
@@ -62,14 +73,3 @@ def test_dask_pairwise_distance_matrix():
     assert D[2][2] == 0
     # distance between r2 and r3 is closer than r2 and r1
     assert D[1][2] < D[1][0]
-
-
-def test_spearman_accuracy():
-    """ Floating point accuracy test for testing faster calculation methods """
-    r1 = np.array([0.27, 0.24, 0.26, 0.23])
-    r2 = np.array([0.05, 0.2, 0.7, 0.05])
-
-    d1 = spearman_squared_distance(r1, r2)
-    d2 = spearman_squared_distance_legacy(r2, r1)
-    assert d1 == 363.37999999999994
-    assert d2 == 363.37999999999994

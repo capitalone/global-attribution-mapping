@@ -513,15 +513,16 @@ def _get_cost(X, centers_id, dist_func):
     """Return total cost and cost of each cluster"""
     dist_mat = np.zeros((len(X), len(centers_id)))
     # compute distance matrix
-    if isinstance(X, np.ndarray):
-        dist_mat = pairwise_distances(
-            X, X[centers_id, :], metric=dist_func, n_jobs=-1
-        )
-    elif isinstance(X, da.Array):
+    if isinstance(X, da.Array):
         d = dask_pairwise_distances(
             X, np.asarray(X[centers_id, :]), metric=dist_func, n_jobs=-1
         )
         dist_mat = d.compute()
+    else:
+        dist_mat = pairwise_distances(
+            X, X[centers_id, :], metric=dist_func, n_jobs=-1
+        )
+
 
     mask = np.argmin(dist_mat, axis=1)
     # members = np.argmin(dist_mat, axis=1)
