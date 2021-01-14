@@ -70,7 +70,7 @@ def pairwise_spearman_distance_matrix(rankings):
         [array[array]]: Spearman Distance Matrix
     """
     if isinstance(rankings, da.Array):
-        D = dask_pairwise_distances(rankings, rankings, metric=spearman_squared_distance)
+        D = dask_pairwise_distances(rankings, np.asarray(rankings), metric=spearman_squared_distance)
     elif isinstance(rankings, np.ndarray):
         D = sklearn_pairwise_distances(rankings, rankings, metric=spearman_squared_distance)
     return D

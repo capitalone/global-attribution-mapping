@@ -152,7 +152,7 @@ def mergeSortDistance(r1, r2):
 
 def pairwise_distance_matrix(rankings):
     if isinstance(rankings, da.Array):
-        D = dask_pairwise_distances(rankings, rankings, metric=mergeSortDistance)
+        D = dask_pairwise_distances(rankings, np.asarray(rankings), metric=mergeSortDistance)
     elif isinstance(rankings, np.ndarray):
         D = sklearn_pairwise_distances(rankings, rankings, metric=mergeSortDistance)
     return D

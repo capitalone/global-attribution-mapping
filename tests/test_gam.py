@@ -208,13 +208,15 @@ def test_plotting_2attributes():
 def test_dask_vs_numpy():
     client = Client()
     ddf = dd.read_csv("tests/test_attributes.csv")
+    ddf = ddf.repartition(npartitions=4)
     g_ddf = gam.GAM(attributions=ddf)
     g_ddf.generate()
-    client.close()
 
     df = pd.read_csv("tests/test_attributes.csv")
     g_df = gam.GAM(attributions=df)
     g_df.generate()
 
-    assert g_ddf.attributions == g_df.attributions
+    assert g_ddf.attributions.all() == g_df.attributions.all()
     assert g_ddf.feature_labels == g_df.feature_labels
+    client.close()
+

@@ -100,11 +100,7 @@ class GAM:
         self.tol = tol
         self.verbose = verbose
 
-        self.attributions = None
         self.use_normalized = use_normalized
-        self.clustering_attributions = None
-        self.feature_labels = None
-
 
         self.subpopulations = None
         self.subpopulation_sizes = None
@@ -265,12 +261,12 @@ class GAM:
             if display:
                 plt.show()
 
-    def generate(self, init_medoids):
+    def generate(self):
         """Clusters local attributions into subpopulations with global explanations"""
-        if self.attributions_path is not None:
-            self._read_local()
-        else:
+        if self.attributions_path is None:
             self._read_df_or_list()
+        else:
+            self._read_local()
         if self.use_normalized:
             self.clustering_attributions = GAM.normalize(self.attributions)
         else:
