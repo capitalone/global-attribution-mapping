@@ -64,7 +64,6 @@ def test_dask_pairwise_distance_matrix():
     # Testing dask
     client = Client()
     D = pairwise_spearman_distance_matrix(da.from_array(rankings))
-    client.close()
 
     # check symmetry, within floating point rounding margin
     assert (D[0][1] - D[1][0]) < 1e-9
@@ -73,3 +72,5 @@ def test_dask_pairwise_distance_matrix():
     assert D[2][2] == 0
     # distance between r2 and r3 is closer than r2 and r1
     assert D[1][2] < D[1][0]
+    client.close()
+
