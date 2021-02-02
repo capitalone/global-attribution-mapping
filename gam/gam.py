@@ -196,7 +196,7 @@ class GAM:
             if isinstance(self.explanations[0][0][1], da.Array):
                 explanations = []
                 for explanation in self.explanations:
-                    explanations.append([(y[0], y[1].compute()) for x in explanations for y in x])
+                    explanations.append([(x[0], x[1].compute()) for x in explanation])
                 self.explanations = explanations
         else:
             self.cluster_method(self)
