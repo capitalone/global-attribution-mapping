@@ -192,6 +192,12 @@ class GAM:
             self.subpopulations = clusters.members
             self.subpopulation_sizes = GAM.get_subpopulation_sizes(clusters.members)
             self.explanations = self._get_explanations(clusters.centers)
+            # Making explanations return numerical values instead of dask arrays
+            if isinstance(self.explanations[0][0][1], da.Array):
+                explanations = []
+                for explanation in self.explanations:
+                    explanations.append([(y[0], y[1].compute()) for x in explanations for y in x])
+                self.explanations = explanations
         else:
             self.cluster_method(self)
 
