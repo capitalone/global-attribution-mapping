@@ -6,7 +6,10 @@ http://www.plhyu.com/administrator/components/com_jresearch/files/publications/M
 TOOD:
 - consider optimizing using numpy
 """
-
+from sklearn.metrics import pairwise_distances as sklearn_pairwise_distances
+import numpy as np
+from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
+import dask.array as da
 
 def ktau_weighted_distance(r_1, r_2):
     """
@@ -148,9 +151,10 @@ def mergeSortDistance(r1, r2):
 
 
 def pairwise_distance_matrix(rankings):
-    from sklearn.metrics import pairwise_distances
-
-    D = pairwise_distances(rankings, metric=mergeSortDistance)
+    if isinstance(rankings, da.Array):
+        D = dask_pairwise_distances(rankings, np.asarray(rankings), metric=mergeSortDistance)
+    elif isinstance(rankings, np.ndarray):
+        D = sklearn_pairwise_distances(rankings, rankings, metric=mergeSortDistance)
     return D
 
 
@@ -173,3 +177,4 @@ def pairwise_distance_matrix_legacy(rankings):
             row.append(distance)
         D.append(row)
     return D
+
