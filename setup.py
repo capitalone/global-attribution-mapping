@@ -43,7 +43,7 @@ setup(
         "pandas > 0.25.1",
         "scikit-learn > 0.21.3",
         "numpy > 1.17.2",
-        "dask > 2021.1.1",
+        "dask > 2021.1.0",
 
     ],
     python_requires=">=3.6",
