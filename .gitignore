@@ -1,6 +1,7 @@
 # Project 
 .vscode
 .idea
+.DS_store
 
 # Exclude everything in the testing output folder except for the .gitkeep
 tests/output/*
