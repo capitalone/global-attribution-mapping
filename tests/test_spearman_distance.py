@@ -1,7 +1,10 @@
-from gam.spearman_distance  import pairwise_spearman_distance_matrix
-from gam.spearman_distance import (spearman_squared_distance,
-                                   spearman_squared_distance_legacy)
 import numpy as np
+import dask.array as da
+from dask.distributed import Client
+
+from gam.spearman_distance import (pairwise_spearman_distance_matrix,
+                                   spearman_squared_distance,
+                                   spearman_squared_distance_legacy)
 
 
 def test_spearman_symmetry():
@@ -24,14 +27,14 @@ def test_spearman_relative_distances():
     assert spearman_squared_distance(r2, r3) < spearman_squared_distance(r2, r1)
 
 
-# pairwise_spearman_distance_matrix(rankings)
 def test_pairwise_distance_matrix():
     r1 = np.array([0.05, 0.2, 0.7, 0.05])
     r2 = np.array([0.23, 0.24, 0.26, 0.27])
     r3 = np.array([0.22, 0.24, 0.26, 0.28])
 
-    rankings = [r1, r2, r3]
+    rankings = np.array([r1, r2, r3])
     D = pairwise_spearman_distance_matrix(rankings)
+
     # check symmetry, within floating point rounding margin
     assert (D[0][1] - D[1][0]) < 1e-9
     # check diagonal is zero
@@ -48,7 +51,26 @@ def test_spearman_accuracy():
 
     d1 = spearman_squared_distance(r1, r2)
     d2 = spearman_squared_distance_legacy(r2, r1)
-    print(d1)
-    print(d2)
     assert d1 == 363.37999999999994
     assert d2 == 363.37999999999994
+
+
+def test_dask_pairwise_distance_matrix():
+    r1 = np.array([0.05, 0.2, 0.7, 0.05])
+    r2 = np.array([0.23, 0.24, 0.26, 0.27])
+    r3 = np.array([0.22, 0.24, 0.26, 0.28])
+
+    rankings = np.array([r1, r2, r3])
+    # Testing dask
+    client = Client()
+    D = pairwise_spearman_distance_matrix(da.from_array(rankings))
+
+    # check symmetry, within floating point rounding margin
+    assert (D[0][1] - D[1][0]) < 1e-9
+    # check diagonal is zero
+    assert D[1][1] == 0
+    assert D[2][2] == 0
+    # distance between r2 and r3 is closer than r2 and r1
+    assert D[1][2] < D[1][0]
+    client.close()
+
