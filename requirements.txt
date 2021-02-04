@@ -9,4 +9,4 @@ matplotlib==2.2.0
 pandas==0.25.1
 scikit-learn==0.21.3
 numpy==1.17.2
-dask[complete]
+dask==5.4.1
