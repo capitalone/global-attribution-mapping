@@ -24,27 +24,26 @@ CURR_DIR = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(CURR_DIR, "README.md"), encoding="utf-8") as file_open:
     LONG_DESCRIPTION = file_open.read()
 
-DESCRIPTION = 'Global Explanations for Deep Neural Networks'
+DESCRIPTION = "Global Explanations for Deep Neural Networks"
 
 setup(
-    name='gam',
-    version='1.0.0',
-    packages=['gam', 'tests'],
-    maintainer='Brian Barr',
-    maintainer_email='brian.barr@capitalone.com',
+    name="gam",
+    version="1.1.0",
+    packages=["gam", "tests"],
+    maintainer="Brian Barr",
+    maintainer_email="brian.barr@capitalone.com",
     url="https://github.com/capitalone/global-attribution-mapping",
     classifiers=["Programming Language :: Python :: 3"],
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
-    long_description_content_type='text/markdown',
-    license='Apache License 2.0',
+    long_description_content_type="text/markdown",
+    license="Apache License 2.0",
     install_requires=[
         "matplotlib > 2.2.0",
         "pandas > 0.25.1",
         "scikit-learn > 0.21.3",
         "numpy > 1.17.2",
         "dask > 2021.1.0",
-
     ],
     python_requires=">=3.6",
 )

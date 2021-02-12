@@ -1,5 +1,6 @@
 atomicwrites==1.1.5
 attrs==18.1.0
+dask==2021.1.1
 more-itertools==4.2.0
 pluggy==0.6.0
 py==1.5.3
@@ -9,5 +10,4 @@ matplotlib==2.2.0
 pandas==0.25.1
 scikit-learn==0.21.3
 numpy==1.17.2
-dask==2021.1.1
 numba==0.51.2
