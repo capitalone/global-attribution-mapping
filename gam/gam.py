@@ -5,13 +5,13 @@ TODO:
 - add integration tests
 - expand to use other distance metrics
 """
-import dask.array as da
-import dask.dataframe as dd
-
 import csv
 import logging
+import pickle
 from collections import Counter
 
+import dask.array as da
+import dask.dataframe as dd
 import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
@@ -82,13 +82,14 @@ class GAM:
         self.cluster_method = cluster_method
 
         self.distance = distance
-        if self.distance == "spearman":
-            self.distance_function = spearman_squared_distance
-        elif self.distance == "kendall":
-            self.distance_function = mergeSortDistance
-        else:
-            self.distance_function = (
-                distance
+        self._set_distance_function()
+#        if self.distance == "spearman":
+#            self.distance_function = spearman_squared_distance
+#        elif self.distance == "kendall":
+#            self.distance_function = mergeSortDistance
+#        else:
+#            self.distance_function = (
+#                distance
             )  # assume this is  metric listed in pairwise.PAIRWISE_DISTANCE_FUNCTIONS
 
         self.scoring_method = scoring_method
@@ -111,7 +112,17 @@ class GAM:
 
         if seed:
             np.random.seed(seed=seed)
-            
+
+    def _set_distance_function(self):
+        if self.distance == "spearman":
+            self.distance_function = spearman_squared_distance
+        elif self.distance == "kendall":
+            self.distance_function = mergeSortDistance
+        else:
+            self.distance_function = (
+                distance
+            )  # assume this is  metric listed in pairwise.PAIRWISE_DISTANCE_FUNCTIONS
+
     def _read_df_or_list(self):
         """
         Converts attributions to numpy array and feature labels to a list if a pandas dataframe, numpy array, or list is passed in,
@@ -126,9 +137,19 @@ class GAM:
         elif isinstance(self.attributions, pd.DataFrame):
             self.feature_labels = self.attributions.columns.tolist()
             self.attributions = np.asarray(self.attributions.values.tolist())
-        elif isinstance(self.attributions, (np.ndarray, list)) or isinstance(self.attributions, da.Array) or isinstance(self.feature_labels, (np.ndarray, list)) or isinstance(self.feature_labels, da.Array):
-            if (isinstance(self.attributions, (np.ndarray, list)) and self.feature_labels is None) or (self.attributions is None and self.feature_labels is not None):
-                raise ValueError("You must have both 'attributions' and 'feature_labels' if 'attributions' is not a dataframe.")
+        elif (
+            isinstance(self.attributions, (np.ndarray, list))
+            or isinstance(self.attributions, da.Array)
+            or isinstance(self.feature_labels, (np.ndarray, list))
+            or isinstance(self.feature_labels, da.Array)
+        ):
+            if (
+                isinstance(self.attributions, (np.ndarray, list))
+                and self.feature_labels is None
+            ) or (self.attributions is None and self.feature_labels is not None):
+                raise ValueError(
+                    "You must have both 'attributions' and 'feature_labels' if 'attributions' is not a dataframe."
+                )
             elif isinstance(self.attributions, list):
                 self.attributions = np.asarray(self.attributions)
             elif isinstance(self.attributions, (np.ndarray, da.Array)):
@@ -280,3 +301,44 @@ class GAM:
         self._cluster()
         if self.scoring_method:
             self.score = self.scoring_method(self)
+
+    def save(self):
+        """ Save a pickled copy to disk """
+        # save_attributions  - default to true
+        # save_labels - default to true
+
+        # delete the metric function - will reload later
+        delattr(self, distance_function)
+
+        if self.save_attributions is False:
+            delattr(self, attributions)
+            delattr(self, clustering_attributions)
+
+        if self.save_labels is False:
+            delattr(self, subpopulations)
+
+        pkl_file = f"gam_k_{n_clusters}.pkl"
+        with open(pkl_file, "wb") as f:
+            pickle.dump(self, f)
+
+    def load(self):
+        """ Load a pickled copy to disk """
+        self._set_distance_function()
+
+        pkl_file = f"gam_k_{n_clusters}.pkl"
+        with open(pkl_file, "rb") as f:
+            self = pickle.load(f)
+
+    def warm_start():
+        """ Load previous old result (kold) to warm start new analysis  (knew)
+            Assumes kold < knew
+            TODO:
+             1. update clustering to save init centers
+             2. copy k0 init centers to first k0 entries of k1 init centers
+             3. set initial k to start with in init
+             4. copy over attributions
+             .
+             .
+             .
+             .
+        """
