@@ -27,10 +27,10 @@ def update(existingAggregate, new_values):
     (count, mean, m2) = existingAggregate
     count += len(new_values)
     # newvalues - oldMean
-    delta = np.subtract(new_values, [mean] * len(new_values))
+    delta = new_values - mean
     mean += np.sum(delta / count)
     # newvalues - newMean
-    delta2 = np.subtract(new_values, [mean] * len(new_values))
+    delta2 = new_values - mean
     m2 += np.sum(delta * delta2)
 
     return (count, mean, m2)
@@ -84,14 +84,14 @@ def _init_pam_build(X, n_clusters, dist_func):
 
     # find first medoid - the most central point
     print("BUILD: Initializing first medoid - ")
-    i = 0
+    # i = 0
     td = float("inf")
     for j in range(n_samples):
         d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
         tmp_td = d.sum()
         if tmp_td < td:
             td = tmp_td
-            centers[i] = j
+            centers[0] = j
             D = d.reshape(-1, 1)
 
     print(f"Found first medoid = {centers[0]}")
@@ -101,7 +101,6 @@ def _init_pam_build(X, n_clusters, dist_func):
     for i in range(1, n_clusters):
         d_nearest = np.partition(D, 0)[:, 0]
         print(i, d_nearest.min(), d_nearest.max())
-        td = float("inf")
         # available candidates
         unselected_ids = np.arange(n_samples)
         unselected_ids = np.delete(unselected_ids, centers[0:i])
@@ -132,8 +131,8 @@ def _find_first_medoid(X, n_clusters, dist_func, batchsize, verbose):
 
     # find first medoid - the most central point
     print("BANDIT: Initializing first medoid - ")
-    i = 0
-    td = float("inf")
+    # i = 0
+    # td = float("inf")
     mu_x = np.zeros((n_samples))
     sigma_x = np.zeros((n_samples))
     C_x = np.zeros((n_samples))
@@ -172,7 +171,7 @@ def _find_first_medoid(X, n_clusters, dist_func, batchsize, verbose):
 
     if solution_ids.shape[0] == 1:
         # save the single sample as a medoid (either keep index, or find index of sample)
-        centers[i] = solution_ids  # probably a type error
+        centers[0] = solution_ids  # probably a type error
         d = cdist(X, X[solution_ids, :].reshape(1, -1), metric=dist_func).squeeze()
         D = np.copy(d).reshape(-1, 1)
     else:  # this is fastPam build - with far fewer pts to evaluate
@@ -183,7 +182,7 @@ def _find_first_medoid(X, n_clusters, dist_func, batchsize, verbose):
             tmp_td = np.sum(d)
             if tmp_td < td:
                 td = tmp_td
-                centers[i] = j
+                centers[0] = j
                 D = d.reshape(-1, 1)
     print(f"Found first medoid = {centers[0]}")
     return centers, D
@@ -195,10 +194,10 @@ def _find_remaining(X, n_clusters, dist_func, batchsize, centers, D, verbose):
     delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
     print("Initializing other medoids - ")
     for i in range(1, n_clusters):
-        td = float("inf")
+        # td = float("inf")
         mu_x = np.zeros((n_samples))
         sigma_x = np.zeros((n_samples))
-        C_x = np.zeros((n_samples))
+        # C_x = np.zeros((n_samples))
         d_nearest = np.partition(D, 0)[:, 0]
 
         # available candidates - S_tar - we draw samples from this population
@@ -279,9 +278,9 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
         mu_x = np.zeros((n_samples, n_clusters))
         # sigma_x = float("inf") * np.ones((n_samples, n_clusters))
         sigma_x = np.zeros((n_samples, n_clusters))
-        C_x = np.zeros((n_samples, n_clusters))
+        # C_x = np.zeros((n_samples, n_clusters))
 
-        Tih_min = float("inf")
+        # Tih_min = float("inf")
         done = True  # let's be optimistic we won't find a swap
         d = cdist(X, X[centers, :], metric=dist_func)
         # cache nearest (D) and second nearest (E) distances to medoids
@@ -327,10 +326,9 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
                 K_jih[idx] = np.minimum(d_jh[idx], E[idx]) - D[idx]
 
                 # Tih = np.sum(K_jih)
-                Tih = np.sum(K_jih)
 
                 # baseline update of mu and sigma
-                mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + Tih) / (
+                mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + np.sum(K_jih)) / (
                     n_used_ref + batchsize
                 )
                 sigma_x[h, i] = np.std(K_jih)
@@ -496,17 +494,17 @@ def _get_distance(data1, data2):
     return np.sqrt(np.sum((data1 - data2) ** 2))
 
 
-def _assign_pts_to_medoids(X, centers_id, dist_func):
-    dist_mat = cdist(X, X[centers_id, :], metric=dist_func)
-    members = np.argmin(dist_mat, axis=1)
-    return members, dist_mat
+# def _assign_pts_to_medoids(X, centers_id, dist_func):
+#     dist_mat = cdist(X, X[centers_id, :], metric=dist_func)
+#     members = np.argmin(dist_mat, axis=1)
+#     return members, dist_mat
 
 
-def _loss(x, dist_func):
-    D = squareform(pdist(x, metric=dist_func))
-    loss = np.sum(D, axis=1)
-    id = np.argmin(loss)
-    return id, loss
+# def _loss(x, dist_func):
+#     D = squareform(pdist(x, metric=dist_func))
+#     loss = np.sum(D, axis=1)
+#     id = np.argmin(loss)
+#     return id, loss
 
 
 def _get_cost(X, centers_id, dist_func):
@@ -700,9 +698,9 @@ class KMedoids:
 
         # Get initial centers
         init_start = time.time()
-        if self.init_medoids == "build":
+        if init_medoids == "build":
             init_ids = _init_pam_build(X, n_clusters, dist_func)
-        elif self.init_medoids == "bandit":
+        elif init_medoids == "bandit":
             init_ids = _init_bandit_build(X, n_clusters, dist_func, verbose)
         else:
             init_ids = _get_random_centers(n_clusters, n_samples)
@@ -717,16 +715,16 @@ class KMedoids:
         init_ids = list(init_ids)
 
         # Find which swap method we are using
-        if self.swap_medoids == "stop":
+        if swap_medoids == "stop":
             print("Stop method was selected.  Exiting. clustering.py near line 251")
             print(init_ids)
             sys.exit()
         #        elif self.swap_medoids:
         #            raise NotImplementedError()
-        elif self.swap_medoids == "bandit":
+        elif swap_medoids == "bandit":
             centers = _swap_bandit(X, init_ids, dist_func, max_iter, tol, verbose)
             members, costs, tot_cost, dist_mat = _get_cost(X, centers, dist_func)
-        elif self.swap_medoids == "pam":
+        elif swap_medoids == "pam":
             centers = _swap_pam(X, init_ids, dist_func, max_iter, tol, verbose)
             members, costs, tot_cost, dist_mat = _get_cost(X, centers, dist_func)
         else:
@@ -764,8 +762,8 @@ class KMedoids:
         n_samples, _ = X.shape
 
         # Get initial centers
-        if self.init_medoids:
-            init_ids = self.init_medoids
+        if init_medoids:
+            init_ids = init_medoids
         else:
             init_ids = _get_random_centers(n_clusters, n_samples)
         if verbose:
