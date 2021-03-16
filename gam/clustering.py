@@ -84,7 +84,6 @@ def _init_pam_build(X, n_clusters, dist_func):
 
     # find first medoid - the most central point
     print("BUILD: Initializing first medoid - ")
-    # i = 0
     td = float("inf")
     for j in range(n_samples):
         d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
