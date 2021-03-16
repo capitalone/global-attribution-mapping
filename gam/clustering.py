@@ -131,8 +131,6 @@ def _find_first_medoid(X, n_clusters, dist_func, batchsize, verbose):
 
     # find first medoid - the most central point
     print("BANDIT: Initializing first medoid - ")
-    # i = 0
-    # td = float("inf")
     mu_x = np.zeros((n_samples))
     sigma_x = np.zeros((n_samples))
     C_x = np.zeros((n_samples))
@@ -194,10 +192,8 @@ def _find_remaining(X, n_clusters, dist_func, batchsize, centers, D, verbose):
     delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
     print("Initializing other medoids - ")
     for i in range(1, n_clusters):
-        # td = float("inf")
         mu_x = np.zeros((n_samples))
         sigma_x = np.zeros((n_samples))
-        # C_x = np.zeros((n_samples))
         d_nearest = np.partition(D, 0)[:, 0]
 
         # available candidates - S_tar - we draw samples from this population
@@ -276,11 +272,8 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
 
         # initialize mu and sigma
         mu_x = np.zeros((n_samples, n_clusters))
-        # sigma_x = float("inf") * np.ones((n_samples, n_clusters))
         sigma_x = np.zeros((n_samples, n_clusters))
-        # C_x = np.zeros((n_samples, n_clusters))
 
-        # Tih_min = float("inf")
         done = True  # let's be optimistic we won't find a swap
         d = cdist(X, X[centers, :], metric=dist_func)
         # cache nearest (D) and second nearest (E) distances to medoids
@@ -314,7 +307,6 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
                 ).squeeze()
 
                 # calculate K_jih
-                # K_jih = np.zeros_like(D)
                 K_jih = np.zeros(batchsize)
                 diff_ji = d_ji[idx_ref] - D[idx_ref]
                 idx = np.where(diff_ji > 0)
@@ -324,8 +316,6 @@ def _swap_bandit(X, centers, dist_func, max_iter, tol, verbose):
 
                 idx = np.where(diff_ji == 0)
                 K_jih[idx] = np.minimum(d_jh[idx], E[idx]) - D[idx]
-
-                # Tih = np.sum(K_jih)
 
                 # baseline update of mu and sigma
                 mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + np.sum(K_jih)) / (
@@ -492,19 +482,6 @@ def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
 def _get_distance(data1, data2):
     """example distance function"""
     return np.sqrt(np.sum((data1 - data2) ** 2))
-
-
-# def _assign_pts_to_medoids(X, centers_id, dist_func):
-#     dist_mat = cdist(X, X[centers_id, :], metric=dist_func)
-#     members = np.argmin(dist_mat, axis=1)
-#     return members, dist_mat
-
-
-# def _loss(x, dist_func):
-#     D = squareform(pdist(x, metric=dist_func))
-#     loss = np.sum(D, axis=1)
-#     id = np.argmin(loss)
-#     return id, loss
 
 
 def _get_cost(X, centers_id, dist_func):
