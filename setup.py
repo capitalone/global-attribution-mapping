@@ -39,6 +39,8 @@ setup(
     long_description_content_type="text/markdown",
     license="Apache License 2.0",
     install_requires=[
+        "dask[complete] == 2021.2.0",
+        "dask-ml == 1.8.0",
         "matplotlib > 2.2.0",
         "pandas > 0.25.1",
         "scikit-learn > 0.21.3",
