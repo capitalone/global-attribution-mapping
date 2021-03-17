@@ -1,13 +1,13 @@
 atomicwrites==1.1.5
-attrs==18.1.0
+attrs==19.2.0
 dask[complete]==2021.2.0
 more-itertools==4.2.0
-pluggy==0.6.0
-py==1.5.3
+pluggy==0.13.1
+py==1.8.2
 pytest==6.2.2
 pytest-cov==2.11.1
 six==1.11.0
-matplotlib==2.2.0
+matplotlib==3.3.4
 pandas==0.25.1
 scikit-learn==0.21.3
 numpy==1.17.2
