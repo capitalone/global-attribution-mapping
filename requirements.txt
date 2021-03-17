@@ -4,7 +4,7 @@ dask[complete]==2021.2.0
 more-itertools==4.2.0
 pluggy==0.6.0
 py==1.5.3
-pytest==3.6.1
+pytest==6.2.2
 pytest-cov==2.11.1
 six==1.11.0
 matplotlib==2.2.0
