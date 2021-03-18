@@ -1,6 +1,6 @@
 # SPDX-Copyright: Copyright (c) Capital One Services, LLC
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2020 Capital One Services, LLC
+# Copyright 2021 Capital One Services, LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ DESCRIPTION = "Global Explanations for Deep Neural Networks"
 
 setup(
     name="gam",
-    version="1.1.0",
+    version="1.1.1",
     packages=["gam", "tests"],
     maintainer="Brian Barr",
     maintainer_email="brian.barr@capitalone.com",
