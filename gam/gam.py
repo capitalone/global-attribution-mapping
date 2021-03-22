@@ -66,8 +66,8 @@ class GAM:
         tol=1e-3,
         init_medoids=None,
         swap_medoids=None,
+        batchsize=100,
         verbose=False,
-        seed=None,
     ):
 
         self.attributions_path = attributions_path
@@ -108,9 +108,8 @@ class GAM:
 
         self.scoring_method = scoring_method
         self.score = None
+        self.batchsize = batchsize
 
-        if seed:
-            np.random.seed(seed=seed)
             
     def _read_df_or_list(self):
         """
@@ -181,6 +180,7 @@ class GAM:
         if self.cluster_method is None:
             clusters = KMedoids(
                 self.k,
+                self.batchsize,
                 dist_func=self.distance_function,
                 max_iter=self.max_iter,
                 tol=self.tol,
