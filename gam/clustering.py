@@ -18,6 +18,34 @@ from scipy.spatial.distance import cdist, pdist, squareform
 
 from itertools import product
 
+def update(existingAggregate, new_values):
+    """ Batch updates mu and sigma for bandit PAM using Welford's algorithm
+    Refs:
+        https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+        https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
+    """
+
+    (count, mean, m2) = existingAggregate
+    count += len(new_values)
+    # newvalues - oldMean
+    delta = new_values - mean
+    mean += np.sum(delta / count)
+    # newvalues - newMean
+    delta2 = new_values - mean
+    m2 += np.sum(delta * delta2)
+
+    return (count, mean, m2)
+
+
+def finalize(existingAggregate):
+    (count, mean, m2) = existingAggregate
+    (mean, variance, sampleVariance) = (mean, m2 / count, m2 / (count - 1))
+    if count < 2:
+        return float("nan")
+    else:
+        return (mean, variance, sampleVariance)
+
+
 def _get_random_centers(n_clusters, n_samples):
     """Return random points as initial centers
     """
@@ -59,7 +87,6 @@ def _init_pam_build(X, n_clusters, dist_func):
 
     # find first medoid - the most central point
     print("BUILD: Initializing first medoid - ")
-    # i = 0
     td = float("inf")
     for j in range(n_samples):
         d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
@@ -83,9 +110,6 @@ def _init_pam_build(X, n_clusters, dist_func):
         D = np.concatenate((D, d_best), axis=1)
         print(f"updated centers - {centers}")
     return centers
-
-
-
 
 def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
     done = False
@@ -152,19 +176,6 @@ def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
 def _get_distance(data1, data2):
     """example distance function"""
     return np.sqrt(np.sum((data1 - data2) ** 2))
-
-
-# def _assign_pts_to_medoids(X, centers_id, dist_func):
-#     dist_mat = cdist(X, X[centers_id, :], metric=dist_func)
-#     members = np.argmin(dist_mat, axis=1)
-#     return members, dist_mat
-
-
-# def _loss(x, dist_func):
-#     D = squareform(pdist(x, metric=dist_func))
-#     loss = np.sum(D, axis=1)
-#     id = np.argmin(loss)
-#     return id, loss
 
 
 def _get_cost(X, centers_id, dist_func):
@@ -530,7 +541,7 @@ class KMedoids:
         return count, mean, m2
 
 
-    def _finalize(self, count, m2):
+    def _finalize(self, count, mean, m2):
         """Finding variance for each new mean
 
         Args:
@@ -541,11 +552,13 @@ class KMedoids:
             variance (int): The variance of the medoids
             TODO: Update this
         """
+        mean = mean
         variance = (m2 / count)
+        sample_variance = m2 / (count - 1)
         if count < 2:
             return float("nan")
         else:
-            return variance
+            return mean, variance, sample_variance
 
    
     def _bandit_search_singles(self, X, dist_func, d_nearest, td, tmp_arr, j, i):
@@ -619,7 +632,7 @@ class KMedoids:
             td = d.sum()
             var = sigma_x[j] ** 2 * n_used_ref
             n_used_ref, mu_x[j], var = self._update(n_used_ref, mu_x[j], var, d)
-            var = self._finalize(n_used_ref, var)
+            mu_x[j], var, var_sample = self._finalize(n_used_ref, mu_x[j], var)
             sigma_x[j] = np.sqrt(var)
         else:
             tmp_delta = d - d_nearest[idx_ref]
