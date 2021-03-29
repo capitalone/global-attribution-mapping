@@ -35,11 +35,7 @@ def test_banditPAM():
     print(kmed2.centers)
 
     # if testing with 'euclidean' distance
-    for val in kmed2.centers:
-        assert val in [256, 209, 470, 304]
-    # print([i for i, v in kmed2.centers if v in [256, 209, 470, 304]])
-    # assert kmed2.centers == [i for i, v in kmed2.centers if v in [256, 209, 470, 304]]
-    # set([256, 209, 470, 304])
+    assert (kmed2.centers == [256, 209, 470, 304])
 
     # if testing with spearman
     # assert kmed2.centers == [526, 529, 623, 542]
