@@ -34,6 +34,27 @@ def update(existingAggregate, new_values):
 
     return (count, mean, m2)
 
+<<<<<<< HEAD
+def update(existingAggregate, new_values):
+    """ Batch updates mu and sigma for bandit PAM using Welford's algorithm
+    Refs:
+        https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+        https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
+    """
+
+    (count, mean, m2) = existingAggregate
+    count += len(new_values)
+    # newvalues - oldMean
+    delta = new_values - mean
+    mean += np.sum(delta / count)
+    # newvalues - newMean
+    delta2 = new_values - mean
+    m2 += np.sum(delta * delta2)
+
+    return (count, mean, m2)
+
+=======
+>>>>>>> ad50069c55e14009e4d7e5891dc7e0243ebf8598
 
 def finalize(existingAggregate):
     (count, mean, m2) = existingAggregate
@@ -41,7 +62,13 @@ def finalize(existingAggregate):
     if count < 2:
         return float("nan")
     else:
+<<<<<<< HEAD
+        return (mean, variance, sampleVariance)
+
+
+=======
         return (mean, variance, sampleVarianc
+>>>>>>> ad50069c55e14009e4d7e5891dc7e0243ebf8598
 def _get_random_centers(n_clusters, n_samples):
     """Return random points as initial centers
     """
@@ -537,7 +564,7 @@ class KMedoids:
         return count, mean, m2
 
 
-    def _finalize(self, count, m2):
+    def _finalize(self, count, mean, m2):
         """Finding variance for each new mean
 
         Args:
@@ -548,11 +575,13 @@ class KMedoids:
             variance (int): The variance of the medoids
             TODO: Update this
         """
+        mean = mean
         variance = (m2 / count)
+        sample_variance = m2 / (count - 1)
         if count < 2:
             return float("nan")
         else:
-            return variance
+            return mean, variance, sample_variance
 
    
     def _bandit_search_singles(self, X, dist_func, d_nearest, td, tmp_arr, j, i):
@@ -626,7 +655,7 @@ class KMedoids:
             td = d.sum()
             var = sigma_x[j] ** 2 * n_used_ref
             n_used_ref, mu_x[j], var = self._update(n_used_ref, mu_x[j], var, d)
-            var = self._finalize(n_used_ref, var)
+            mu_x[j], var, var_sample = self._finalize(n_used_ref, mu_x[j], var)
             sigma_x[j] = np.sqrt(var)
         else:
             tmp_delta = d - d_nearest[idx_ref]
