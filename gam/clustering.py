@@ -15,6 +15,7 @@ import numpy as np
 from sklearn.metrics import pairwise_distances
 from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
 from scipy.spatial.distance import cdist, pdist, squareform
+from itertools import product
 
 def update(existingAggregate, new_values):
     """ Batch updates mu and sigma for bandit PAM using Welford's algorithm
@@ -33,28 +34,6 @@ def update(existingAggregate, new_values):
     m2 += np.sum(delta * delta2)
 
     return (count, mean, m2)
-
-<<<<<<< HEAD
-def update(existingAggregate, new_values):
-    """ Batch updates mu and sigma for bandit PAM using Welford's algorithm
-    Refs:
-        https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
-        https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
-    """
-
-    (count, mean, m2) = existingAggregate
-    count += len(new_values)
-    # newvalues - oldMean
-    delta = new_values - mean
-    mean += np.sum(delta / count)
-    # newvalues - newMean
-    delta2 = new_values - mean
-    m2 += np.sum(delta * delta2)
-
-    return (count, mean, m2)
-
-=======
->>>>>>> ad50069c55e14009e4d7e5891dc7e0243ebf8598
 
 def finalize(existingAggregate):
     (count, mean, m2) = existingAggregate
@@ -62,13 +41,8 @@ def finalize(existingAggregate):
     if count < 2:
         return float("nan")
     else:
-<<<<<<< HEAD
         return (mean, variance, sampleVariance)
 
-
-=======
-        return (mean, variance, sampleVarianc
->>>>>>> ad50069c55e14009e4d7e5891dc7e0243ebf8598
 def _get_random_centers(n_clusters, n_samples):
     """Return random points as initial centers
     """
