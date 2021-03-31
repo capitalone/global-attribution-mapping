@@ -46,10 +46,7 @@ def finalize(existingAggregate):
     else:
         return (mean, variance, sampleVariance)
 
-<<<<<<< HEAD
 
-=======
->>>>>>> ba3785755dc14f9c891a41b906ad1c6f58e60288
 def _get_random_centers(n_clusters, n_samples):
     """Return random points as initial centers"""
     init_ids = []
