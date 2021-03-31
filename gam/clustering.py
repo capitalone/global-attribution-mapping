@@ -15,6 +15,7 @@ import numpy as np
 from sklearn.metrics import pairwise_distances
 from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
 from scipy.spatial.distance import cdist, pdist, squareform
+from itertools import product
 
 from itertools import product
 
@@ -37,7 +38,6 @@ def update(existingAggregate, new_values):
 
     return (count, mean, m2)
 
-
 def finalize(existingAggregate):
     (count, mean, m2) = existingAggregate
     (mean, variance, sampleVariance) = (mean, m2 / count, m2 / (count - 1))
@@ -46,7 +46,10 @@ def finalize(existingAggregate):
     else:
         return (mean, variance, sampleVariance)
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> ba3785755dc14f9c891a41b906ad1c6f58e60288
 def _get_random_centers(n_clusters, n_samples):
     """Return random points as initial centers"""
     init_ids = []
@@ -538,6 +541,10 @@ class KMedoids:
 
         return count, mean, m2
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> ba3785755dc14f9c891a41b906ad1c6f58e60288
     def _finalize(self, count, mean, m2):
         """Finding variance for each new mean
 
@@ -549,7 +556,7 @@ class KMedoids:
             variance (int): The variance of the medoids
         """
         mean = mean
-        variance = m2 / count
+        variance = (m2 / count)
         sample_variance = m2 / (count - 1)
         if count < 2:
             return float("nan")
