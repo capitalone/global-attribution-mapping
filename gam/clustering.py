@@ -541,10 +541,7 @@ class KMedoids:
 
         return count, mean, m2
 
-<<<<<<< HEAD
-=======
 
->>>>>>> ba3785755dc14f9c891a41b906ad1c6f58e60288
     def _finalize(self, count, mean, m2):
         """Finding variance for each new mean
 

@@ -49,7 +49,6 @@ class GAM:
         scoring_method (callable) function to calculate scalar representing goodness of fit for a given k, default=None
         max_iter (int): maximum number of iteration in k-medoids, default=100
         tol (float): tolerance denoting minimal acceptable amount of improvement, controls early stopping, default=1e-3
-        seed (int): seed for numpy random state, default=None
     """
 
     def __init__(
@@ -87,9 +86,7 @@ class GAM:
         elif self.distance == "kendall":
             self.distance_function = mergeSortDistance
         else:
-            self.distance_function = (
-                distance
-            )  # assume this is  metric listed in pairwise.PAIRWISE_DISTANCE_FUNCTIONS
+            self.distance_function = distance  # assume this is  metric listed in pairwise.PAIRWISE_DISTANCE_FUNCTIONS
 
         self.scoring_method = scoring_method
         self.init_medoids = init_medoids
@@ -110,7 +107,6 @@ class GAM:
         self.score = None
         self.batchsize = batchsize
 
-            
     def _read_df_or_list(self):
         """
         Converts attributions to numpy array and feature labels to a list if a pandas dataframe, numpy array, or list is passed in,
@@ -125,9 +121,19 @@ class GAM:
         elif isinstance(self.attributions, pd.DataFrame):
             self.feature_labels = self.attributions.columns.tolist()
             self.attributions = np.asarray(self.attributions.values.tolist())
-        elif isinstance(self.attributions, (np.ndarray, list)) or isinstance(self.attributions, da.Array) or isinstance(self.feature_labels, (np.ndarray, list)) or isinstance(self.feature_labels, da.Array):
-            if (isinstance(self.attributions, (np.ndarray, list)) and self.feature_labels is None) or (self.attributions is None and self.feature_labels is not None):
-                raise ValueError("You must have both 'attributions' and 'feature_labels' if 'attributions' is not a dataframe.")
+        elif (
+            isinstance(self.attributions, (np.ndarray, list))
+            or isinstance(self.attributions, da.Array)
+            or isinstance(self.feature_labels, (np.ndarray, list))
+            or isinstance(self.feature_labels, da.Array)
+        ):
+            if (
+                isinstance(self.attributions, (np.ndarray, list))
+                and self.feature_labels is None
+            ) or (self.attributions is None and self.feature_labels is not None):
+                raise ValueError(
+                    "You must have both 'attributions' and 'feature_labels' if 'attributions' is not a dataframe."
+                )
             elif isinstance(self.attributions, list):
                 self.attributions = np.asarray(self.attributions)
             elif isinstance(self.attributions, (np.ndarray, da.Array)):
