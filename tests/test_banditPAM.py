@@ -36,7 +36,8 @@ def test_banditPAM():
     print(kmed2.centers)
 
     # if testing with 'euclidean' distance
-    assert (kmed2.centers == [256, 209, 470, 304])
+    assert np.isin(kmed2.centers, [256, 209, 470, 304]).all()
+
 
 def test_banditPAM_dask():
     # load the data
@@ -63,5 +64,4 @@ def test_banditPAM_dask():
     print(kmed2.centers)
 
     # if testing with 'euclidean' distance
-    assert (kmed2.centers == [256, 209, 470, 304])
-
+    assert np.isin(kmed2.centers, [256, 209, 470, 304]).all()
