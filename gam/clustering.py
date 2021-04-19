@@ -1,4 +1,3 @@
-
 """
 Implementation of kmedoids using custom distance metric
 Originally adapted from https://raw.githubusercontent.com/shenxudeu/K_Medoids/master/k_medoids.py
@@ -17,11 +16,9 @@ import dask_distance
 from sklearn.metrics import pairwise_distances
 from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
 from scipy.spatial.distance import cdist, pdist, squareform
-from itertools import product
 
 from itertools import product
 
-from itertools import product
 
 def update(existingAggregate, new_values):
     """Batch updates mu and sigma for bandit PAM using Welford's algorithm
@@ -40,6 +37,7 @@ def update(existingAggregate, new_values):
     m2 += np.sum(delta * delta2)
 
     return (count, mean, m2)
+
 
 def finalize(existingAggregate):
     (count, mean, m2) = existingAggregate
@@ -412,7 +410,7 @@ class KMedoids:
         #            raise NotImplementedError()
         elif swap_medoids == "bandit":
             centers = self._swap_bandit(X, init_ids, dist_func, max_iter, tol, verbose)
-
+            print(centers)
             members, costs, tot_cost, dist_mat = _get_cost(X, centers, dist_func)
         elif swap_medoids == "pam":
             centers = _swap_pam(X, init_ids, dist_func, max_iter, tol, verbose)
@@ -515,7 +513,7 @@ class KMedoids:
         raise NotImplementedError()
 
     def _update(self, count, mean, m2, new_values):
-        """
+        """Batch updates mu and sigma for bandit PAM using Welford's algorithm
         Refs:
             https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
             https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
@@ -542,7 +540,7 @@ class KMedoids:
         return count, mean, m2
 
     def _dask_update(self, count, mean, m2, new_values):
-        """ Batch updates mu and sigma for bandit PAM using Welford's algorithm
+        """Batch updates mu and sigma for bandit PAM using Welford's algorithm
         Refs:
             https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
             https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
@@ -568,7 +566,6 @@ class KMedoids:
 
         return count, mean, m2
 
-
     def _finalize(self, count, m2):
         """Finding variance for each new mean
 
@@ -579,16 +576,32 @@ class KMedoids:
         Returns:
             variance (int): The variance of the medoids
         """
-        variance = (m2 / count)
+        variance = m2 / count
         sample_variance = m2 / (count - 1)
         if count < 2:
             return float("nan")
         else:
             return variance, sample_variance
 
+    def _dask_finalize(self, count, m2):
+        """Finding variance for each new mean
 
-    def _bandit_search_singles(self, X, dist_func, d_nearest, tmp_arr, j, i):
-        """Inner loop for bandit build functions.
+        Args:
+            count (int): The number of reference points.
+            m2 (int): The updated mean.
+
+        Returns:
+            variance (int): The variance of the medoids
+        """
+        variance = da.divide(m2, count)
+        sample_variance = da.divide(m2, (count - 1))
+        if count < 2:
+            return float("nan")
+        else:
+            return variance, sample_variance
+
+    def _bandit_search_singles(self, X, dist_func, d_nearest, td, tmp_arr, j, i):
+        """Inner loop for pam build and bandit build functions.
 
         Args:
             X (np.ndarray): The dataset to be clustered.
@@ -608,7 +621,6 @@ class KMedoids:
         tmp_arr[j] = tmp_td
 
         return tmp_arr[j]
-
 
     def _dask_bandit_search_singles(self, X, dist_func, d_nearest, tmp_arr, j):
         """Inner loop for pam build and bandit build functions.
@@ -658,7 +670,12 @@ class KMedoids:
             self.D = np.empty((n_samples, 1))
             np.random.seed(100)
             delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
-            lambda_centers = np.vectorize(lambda i: self._find_medoids(X, n_clusters, dist_func, centers, verbose, n_samples, delta, i), otypes="O")
+            lambda_centers = np.vectorize(
+                lambda i: self._find_medoids(
+                    X, n_clusters, dist_func, centers, verbose, n_samples, delta, i
+                ),
+                otypes="O",
+            )
             centers = lambda_centers(np.arange(n_clusters))
         else:
             n_samples = X.shape[0]
@@ -666,12 +683,26 @@ class KMedoids:
             self.D = np.empty((n_samples, 1))
             np.random.seed(100)
             delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
-            lambda_centers = np.vectorize(lambda i: self._dask_find_medoids(np.array(X), n_clusters, dist_func, centers, verbose, n_samples, delta, i), otypes="O")
+            lambda_centers = np.vectorize(
+                lambda i: self._dask_find_medoids(
+                    np.array(X),
+                    n_clusters,
+                    dist_func,
+                    centers,
+                    verbose,
+                    n_samples,
+                    delta,
+                    i,
+                ),
+                otypes="O",
+            )
             centers = lambda_centers(np.arange(n_clusters))
 
         return centers
 
-    def _looping_solution_ids(self, X, idx_ref, dist_func, d_nearest, n_used_ref, mu_x, sigma_x, j, i):
+    def _looping_solution_ids(
+        self, X, idx_ref, dist_func, d_nearest, n_used_ref, mu_x, sigma_x, j, i
+    ):
         """Iterating through all of the different solution_ids
 
         Args:
@@ -689,9 +720,7 @@ class KMedoids:
             mu_x (np.ndarray): The running mean.
             sigma_x (np.ndarray): The confidence interval.
         """
-        d = cdist(
-            X[idx_ref, :], X[j, :].reshape(1, -1), metric=dist_func
-        ).squeeze()
+        d = cdist(X[idx_ref, :], X[j, :].reshape(1, -1), metric=dist_func).squeeze()
         if i == 0:
             td = d.sum()
             var = sigma_x[j] ** 2 * n_used_ref
@@ -707,8 +736,9 @@ class KMedoids:
 
         return sigma_x[j], mu_x[j]
 
-
-    def _dask_looping_solution_ids(self, X, idx_ref, dist_func, d_nearest, n_used_ref, mu_x, sigma_x, j, i):
+    def _dask_looping_solution_ids(
+        self, X, idx_ref, dist_func, d_nearest, n_used_ref, mu_x, sigma_x, j, i
+    ):
         """Iterating through all of the different solution_ids
 
         Args:
@@ -730,9 +760,7 @@ class KMedoids:
             j = int(0)
         else:
             j = int(j[0])
-        d = cdist(
-            X[idx_ref, :], X[j, :].reshape(1, -1), metric=dist_func
-        ).squeeze()
+        d = cdist(X[idx_ref, :], X[j, :].reshape(1, -1), metric=dist_func).squeeze()
         if i == 0:
             td = d.sum()
             var = sigma_x[j] ** 2 * n_used_ref
@@ -754,7 +782,9 @@ class KMedoids:
 
         return sigma_x[j], mu_x[j]
 
-    def _find_medoids(self, X, n_clusters, dist_func, centers, verbose, n_samples, delta, i):
+    def _find_medoids(
+        self, X, n_clusters, dist_func, centers, verbose, n_samples, delta, i
+    ):
         """Finding all of the medoids
 
         Args:
@@ -770,8 +800,6 @@ class KMedoids:
         Returns:
             centers (np.ndarray): The list of centers for the different clusters.
         """
-        # find all medoids
-
         mu_x = np.zeros((n_samples))
         sigma_x = np.zeros((n_samples))
         d_nearest = np.partition(self.D, 0)[:, 0]
@@ -829,7 +857,7 @@ class KMedoids:
             td = float("inf")
             lambda_singles = np.vectorize(
                 lambda j: self._bandit_search_singles(
-                    X, dist_func, d_nearest, tmp_arr, j, i
+                    X, dist_func, d_nearest, td, tmp_arr, j, i
                 ),
                 otypes="O",
             )
@@ -849,7 +877,9 @@ class KMedoids:
 
         return centers[i]
 
-    def _dask_find_medoids(self, X, n_clusters, dist_func, centers, verbose, n_samples, delta, i):
+    def _dask_find_medoids(
+        self, X, n_clusters, dist_func, centers, verbose, n_samples, delta, i
+    ):
         """Finding all of the medoids
 
         Args:
@@ -879,13 +909,31 @@ class KMedoids:
         solution_ids = np.copy(unselected_ids)
 
         # # available candidates - S_tar - we draw samples from this population
-        solution_ids = da.asarray(unselected_ids)
+        solution_ids = np.copy(unselected_ids)
         n_used_ref = 0
         while (n_used_ref < n_samples) and (solution_ids.shape[0] > 1):
             # sample a batch from S_ref (for init, S_ref = X)
-            idx_ref = np.random.choice(unselected_ids, size=self.batchsize, replace=True)
-            ci_scale = da.sqrt((2 * da.log(1.0 / delta)) / (n_used_ref + self.batchsize))
-            outputs = da.apply_along_axis(lambda j: self._dask_looping_solution_ids(np.array(X), idx_ref, dist_func, d_nearest, n_used_ref, mu_x, sigma_x, j, i), arr=solution_ids.reshape(-1, 1), axis=1).compute()
+            idx_ref = np.random.choice(
+                unselected_ids, size=self.batchsize, replace=True
+            )
+            ci_scale = math.sqrt(
+                (2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize)
+            )
+            outputs = da.apply_along_axis(
+                lambda j: self._dask_looping_solution_ids(
+                    np.array(X),
+                    idx_ref,
+                    dist_func,
+                    d_nearest,
+                    n_used_ref,
+                    mu_x,
+                    sigma_x,
+                    j,
+                    i,
+                ),
+                arr=solution_ids.reshape(-1, 1),
+                axis=1,
+            ).compute()
             sigma_x, mu_x = outputs[:, 0], outputs[:, 1]
 
             # Remove pts that are unlikely to be a solution
@@ -898,9 +946,9 @@ class KMedoids:
             solution_ids = np.where(lcb_target <= ucb_best)[0]
 
             # clean up any center idx that crept in...
-            for ic in centers:
-                if ic in solution_ids:
-                    solution_ids = solution_ids[da.isin(solution_ids, centers, invert=True)]
+            # for ic in centers:
+            #     if ic in solution_ids:
+            solution_ids = solution_ids[np.isin(solution_ids, centers, invert=True)]
 
             n_used_ref = n_used_ref + self.batchsize
 
@@ -912,25 +960,53 @@ class KMedoids:
         if solution_ids.shape[0] == 1:
             # save the single sample as a medoid
             centers[i] = solution_ids  # probably a type error
-            d = cdist(X, X[centers[i], :].reshape(1, -1), metric=dist_func).squeeze().reshape(-1, 1)
-            d_best = da.array(d).reshape(-1, 1)
+            d = (
+                cdist(X, X[centers[i], :].reshape(1, -1), metric=dist_func)
+                .squeeze()
+                .reshape(-1, 1)
+            )
+            d_best = np.array(d).reshape(-1, 1)
         else:  # this is fastPam build - with far fewer pts to evaluate
             tmp_arr = np.zeros((n_samples))
             td = float("inf")
-            tmp_arr = da.apply_along_axis(lambda j: self._dask_bandit_search_singles(np.array(X), dist_func, d_nearest, tmp_arr, j), arr=da.array(solution_ids.reshape(-1, 1)), axis=1).compute()
-            idx = np.argmin(tmp_arr)
+            output_arr = da.apply_along_axis(
+                lambda j: self._dask_bandit_search_singles(
+                    np.array(X), dist_func, d_nearest, tmp_arr, j
+                ),
+                arr=da.array(solution_ids.reshape(-1, 1)),
+                axis=1,
+            ).compute()
+            idx = np.argmin(output_arr)
             centers[i] = solution_ids[idx]
-            d_best = cdist(X, X[centers[i], :].reshape(1, -1), metric=dist_func).squeeze().reshape(-1, 1)
+            d_best = (
+                cdist(X, X[centers[i], :].reshape(1, -1), metric=dist_func)
+                .squeeze()
+                .reshape(-1, 1)
+            )
         if i == [0]:
-            self.D = arr_min
+            self.D = d_best
         else:
-            self.D = da.concatenate((self.D, d_best), axis=1)
+            self.D = np.concatenate((self.D, d_best), axis=1)
         print("\t updated centers - ", centers)
 
         return centers[i]
 
-
-    def _swap_pairs(self, X, d, a_swap, tmp_swap_pairs, dist_func, idx_ref, n_used_ref, mu_x, sigma_x, D, E, Tih_min, h_i):
+    def _swap_pairs(
+        self,
+        X,
+        d,
+        a_swap,
+        tmp_swap_pairs,
+        dist_func,
+        idx_ref,
+        n_used_ref,
+        mu_x,
+        sigma_x,
+        D,
+        E,
+        Tih_min,
+        h_i,
+    ):
         """Checking to see if there are any better center points.
 
         Args:
@@ -953,7 +1029,7 @@ class KMedoids:
             Tih (float): The best medoid.
         """
         if tmp_swap_pairs is not None:
-            a_swap = tmp_swap_pairs[a_swap[0]-1]
+            a_swap = tmp_swap_pairs[a_swap[0] - 1]
         h = a_swap[0]
         i = a_swap[1]
         d_ji = d[:, i]
@@ -1003,7 +1079,6 @@ class KMedoids:
 
             return Tih
 
-
     def _swap_bandit(self, X, centers, dist_func, max_iter, tol, verbose):
         """BANDIT SWAP - improve medoids after initialization
            Recast as a stochastic estimation problem
@@ -1015,8 +1090,8 @@ class KMedoids:
             centers (np.ndarray): The center medoids of the different clusters
             dist_func (callable): The distance function
             max_iter (int): Max number of times to check for a better medoid.
-            tol (float): Tolerance denoting minimal acceptable amount of improvement, controls early stopping.
-            verbose (bool): Determining whether or not to print out updates. Defaults to False
+            tol (float): [description]
+            verbose (bool): Determining whether or not to print out updates
 
         Returns:
             centers (np.ndarray): The updated center medoids
@@ -1035,7 +1110,10 @@ class KMedoids:
             sigma_x = np.zeros((n_samples, n_clusters))
 
             done = True  # let's be optimistic we won't find a swap
+            #             if isinstance(X, np.ndarray):
             d = cdist(X, X[centers, :], metric=dist_func)
+            #             else:
+            #                 d = dask_distance.cdist(X, X[centers, :], metric=dist_func).compute()
             # cache nearest (D) and second nearest (E) distances to medoids
             tmp = np.partition(d, 1)
             D = tmp[:, 0]
@@ -1052,10 +1130,32 @@ class KMedoids:
             n_used_ref = 0
             while (n_used_ref < n_samples) and (swap_pairs.shape[0] > 1):
                 # sample a batch from S_ref (for init, S_ref = X)
-                idx_ref = np.random.choice(unselected_ids, size=self.batchsize, replace=True)
+                idx_ref = np.random.choice(
+                    unselected_ids, size=self.batchsize, replace=True
+                )
 
-                ci_scale = math.sqrt((2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize))
-                np.apply_along_axis(lambda a_swap: self._swap_pairs(np.array(X), d, a_swap, None, dist_func, idx_ref, n_used_ref, mu_x, sigma_x, D, E, Tih_min, "h"), 1, swap_pairs)
+                ci_scale = math.sqrt(
+                    (2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize)
+                )
+                np.apply_along_axis(
+                    lambda a_swap: self._swap_pairs(
+                        np.array(X),
+                        d,
+                        a_swap,
+                        None,
+                        dist_func,
+                        idx_ref,
+                        n_used_ref,
+                        mu_x,
+                        sigma_x,
+                        D,
+                        E,
+                        Tih_min,
+                        "h",
+                    ),
+                    1,
+                    swap_pairs,
+                )
 
                 # downseslect mu and sigma to match candidate pairs
                 flat_indices = np.ravel_multi_index(
@@ -1088,7 +1188,25 @@ class KMedoids:
             )
 
             done = True  # let's be optimistic we won't find a swap
-            Tih = np.apply_along_axis(lambda a_swap: self._swap_pairs(np.array(X), d, a_swap, None, dist_func, idx_ref, n_used_ref, mu_x, sigma_x, D, E, Tih_min, "i"), 1, swap_pairs)
+            Tih = np.apply_along_axis(
+                lambda a_swap: self._swap_pairs(
+                    np.array(X),
+                    d,
+                    a_swap,
+                    None,
+                    dist_func,
+                    idx_ref,
+                    n_used_ref,
+                    mu_x,
+                    sigma_x,
+                    D,
+                    E,
+                    Tih_min,
+                    "i",
+                ),
+                1,
+                swap_pairs,
+            )
 
             idx = np.argmin(Tih)
             Tih_min = Tih[idx]
