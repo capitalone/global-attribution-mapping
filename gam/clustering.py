@@ -17,11 +17,14 @@ import dask_distance
 from sklearn.metrics import pairwise_distances
 from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
 from scipy.spatial.distance import cdist, pdist, squareform
+from itertools import product
+
+from itertools import product
 
 from itertools import product
 
 def update(existingAggregate, new_values):
-    """ Batch updates mu and sigma for bandit PAM using Welford's algorithm
+    """Batch updates mu and sigma for bandit PAM using Welford's algorithm
     Refs:
         https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
         https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
@@ -38,7 +41,6 @@ def update(existingAggregate, new_values):
 
     return (count, mean, m2)
 
-
 def finalize(existingAggregate):
     (count, mean, m2) = existingAggregate
     (mean, variance, sampleVariance) = (mean, m2 / count, m2 / (count - 1))
@@ -49,8 +51,7 @@ def finalize(existingAggregate):
 
 
 def _get_random_centers(n_clusters, n_samples):
-    """Return random points as initial centers
-    """
+    """Return random points as initial centers"""
     init_ids = []
     while len(init_ids) < n_clusters:
         _ = np.random.randint(0, n_samples)
@@ -76,11 +77,11 @@ def search_singles(X, solution_ids, dist_func, d_nearest):
 
 
 def _init_pam_build(X, n_clusters, dist_func):
-    """ PAM BUILD routine for intialization
-        Greedy allocation of medoids.  1st medoid is most central point.
-        Second medoid decreases TD (total distance/dissimilarity) the most...
-        ...and on until you have found all k pts
-        Run time O(kn^2)
+    """PAM BUILD routine for intialization
+    Greedy allocation of medoids.  1st medoid is most central point.
+    Second medoid decreases TD (total distance/dissimilarity) the most...
+    ...and on until you have found all k pts
+    Run time O(kn^2)
     """
 
     n_samples = X.shape[0]
@@ -112,6 +113,7 @@ def _init_pam_build(X, n_clusters, dist_func):
         D = np.concatenate((D, d_best), axis=1)
         print(f"updated centers - {centers}")
     return centers
+
 
 def _swap_pam(X, centers, dist_func, max_iter, tol, verbose):
     done = False
@@ -190,10 +192,7 @@ def _get_cost(X, centers_id, dist_func):
         )
         dist_mat = d.compute()
     else:
-        dist_mat = pairwise_distances(
-            X, X[centers_id, :], metric=dist_func, n_jobs=-1
-        )
-
+        dist_mat = pairwise_distances(X, X[centers_id, :], metric=dist_func, n_jobs=-1)
 
     mask = np.argmin(dist_mat, axis=1)
     # members = np.argmin(dist_mat, axis=1)
@@ -261,7 +260,7 @@ def _naive_swap(X, centers, dist_func, max_iter, tol, verbose):  # noqa:C901
 
 
 class KMedoids:
-    """"
+    """ "
     Main API of KMedoids Clustering
 
     Parameters
@@ -319,7 +318,7 @@ class KMedoids:
             plotit (bool, optional): Determining whether or not to plot the output. Defaults to False.
             verbose (bool, optional): Whether or not to print out updates on the algorithm. Defaults to True.
         """
-        
+
         centers, members, _, _, _ = self.kmedoids_run_split(
             X,
             self.n_clusters,
@@ -413,7 +412,7 @@ class KMedoids:
         #            raise NotImplementedError()
         elif swap_medoids == "bandit":
             centers = self._swap_bandit(X, init_ids, dist_func, max_iter, tol, verbose)
-            print(centers)
+
             members, costs, tot_cost, dist_mat = _get_cost(X, centers, dist_func)
         elif swap_medoids == "pam":
             centers = _swap_pam(X, init_ids, dist_func, max_iter, tol, verbose)
@@ -516,7 +515,7 @@ class KMedoids:
         raise NotImplementedError()
 
     def _update(self, count, mean, m2, new_values):
-        """ Batch updates mu and sigma for bandit PAM using Welford's algorithm
+        """
         Refs:
             https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
             https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
@@ -541,7 +540,6 @@ class KMedoids:
         m2 += np.sum(delta * delta2)
 
         return count, mean, m2
-
 
     def _dask_update(self, count, mean, m2, new_values):
         """ Batch updates mu and sigma for bandit PAM using Welford's algorithm
@@ -589,26 +587,8 @@ class KMedoids:
             return variance, sample_variance
 
 
-    def _dask_finalize(self, count, m2):
-        """Finding variance for each new mean
-
-        Args:
-            count (int): The number of reference points.
-            m2 (int): The updated mean.
-
-        Returns:
-            variance (int): The variance of the medoids
-        """
-        variance = da.divide(m2, count)
-        sample_variance = da.divide(m2, (count - 1))
-        if count < 2:
-            return float("nan")
-        else:
-            return variance, sample_variance
-
-   
-    def _bandit_search_singles(self, X, dist_func, d_nearest, td, tmp_arr, j, i):
-        """Inner loop for pam build and bandit build functions.
+    def _bandit_search_singles(self, X, dist_func, d_nearest, tmp_arr, j, i):
+        """Inner loop for bandit build functions.
 
         Args:
             X (np.ndarray): The dataset to be clustered.
@@ -774,7 +754,6 @@ class KMedoids:
 
         return sigma_x[j], mu_x[j]
 
-
     def _find_medoids(self, X, n_clusters, dist_func, centers, verbose, n_samples, delta, i):
         """Finding all of the medoids
 
@@ -791,6 +770,8 @@ class KMedoids:
         Returns:
             centers (np.ndarray): The list of centers for the different clusters.
         """
+        # find all medoids
+
         mu_x = np.zeros((n_samples))
         sigma_x = np.zeros((n_samples))
         d_nearest = np.partition(self.D, 0)[:, 0]
@@ -803,9 +784,18 @@ class KMedoids:
         n_used_ref = 0
         while (n_used_ref < n_samples) and (solution_ids.shape[0] > 1):
             # sample a batch from S_ref (for init, S_ref = X)
-            idx_ref = np.random.choice(unselected_ids, size=self.batchsize, replace=True)
-            ci_scale = math.sqrt((2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize))
-            lmbda = np.vectorize(lambda j: self._looping_solution_ids(X, idx_ref, dist_func, d_nearest, n_used_ref, mu_x, sigma_x, j, i), otypes="O")
+            idx_ref = np.random.choice(
+                unselected_ids, size=self.batchsize, replace=True
+            )
+            ci_scale = math.sqrt(
+                (2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize)
+            )
+            lmbda = np.vectorize(
+                lambda j: self._looping_solution_ids(
+                    X, idx_ref, dist_func, d_nearest, n_used_ref, mu_x, sigma_x, j, i
+                ),
+                otypes="O",
+            )
             lmbda(solution_ids)
 
             # Remove pts that are unlikely to be a solution
@@ -837,11 +827,20 @@ class KMedoids:
         else:  # this is fastPam build - with far fewer pts to evaluate
             tmp_arr = np.zeros((n_samples))
             td = float("inf")
-            lambda_singles = np.vectorize(lambda j: self._bandit_search_singles(X, dist_func, d_nearest, td, tmp_arr, j, i), otypes="O")
+            lambda_singles = np.vectorize(
+                lambda j: self._bandit_search_singles(
+                    X, dist_func, d_nearest, tmp_arr, j, i
+                ),
+                otypes="O",
+            )
             tmp_arr = lambda_singles(solution_ids)
             idx = np.argmin(tmp_arr)
             centers[i] = solution_ids[idx]
-            d_best = cdist(X, X[centers[i], :].reshape(1, -1), metric=dist_func).squeeze().reshape(-1, 1)
+            d_best = (
+                cdist(X, X[centers[i], :].reshape(1, -1), metric=dist_func)
+                .squeeze()
+                .reshape(-1, 1)
+            )
         if i == 0:
             self.D = d_best
         else:
@@ -849,7 +848,6 @@ class KMedoids:
         print("\t updated centers - ", centers)
 
         return centers[i]
-
 
     def _dask_find_medoids(self, X, n_clusters, dist_func, centers, verbose, n_samples, delta, i):
         """Finding all of the medoids
@@ -1017,8 +1015,8 @@ class KMedoids:
             centers (np.ndarray): The center medoids of the different clusters
             dist_func (callable): The distance function
             max_iter (int): Max number of times to check for a better medoid.
-            tol (float): [description]
-            verbose (bool): Determining whether or not to print out updates
+            tol (float): Tolerance denoting minimal acceptable amount of improvement, controls early stopping.
+            verbose (bool): Determining whether or not to print out updates. Defaults to False
 
         Returns:
             centers (np.ndarray): The updated center medoids
@@ -1037,10 +1035,7 @@ class KMedoids:
             sigma_x = np.zeros((n_samples, n_clusters))
 
             done = True  # let's be optimistic we won't find a swap
-#             if isinstance(X, np.ndarray):
             d = cdist(X, X[centers, :], metric=dist_func)
-#             else:
-#                 d = dask_distance.cdist(X, X[centers, :], metric=dist_func).compute()
             # cache nearest (D) and second nearest (E) distances to medoids
             tmp = np.partition(d, 1)
             D = tmp[:, 0]
@@ -1094,7 +1089,6 @@ class KMedoids:
 
             done = True  # let's be optimistic we won't find a swap
             Tih = np.apply_along_axis(lambda a_swap: self._swap_pairs(np.array(X), d, a_swap, None, dist_func, idx_ref, n_used_ref, mu_x, sigma_x, D, E, Tih_min, "i"), 1, swap_pairs)
-
 
             idx = np.argmin(Tih)
             Tih_min = Tih[idx]
