@@ -43,7 +43,7 @@ def test_read_df_or_list():
     assert g_ddf.feature_labels == ["a1", "a2", "a3"]
 
     # Testing dask array
-    g_dask_list = gam.GAM(attributions=dask_att_arr, feature_labels=dask_feat_labels_arr)
+    g_dask_list = gam.GAM(attributions=dask_att_arr, batchsize=100, feature_labels=dask_feat_labels_arr)
     g_dask_list.generate()
 
     assert hasattr(g_dask_list, "attributions")
@@ -64,7 +64,7 @@ def test_read_df_or_list():
     assert g_df.feature_labels == ["a1", "a2", "a3"]
 
     # Testing lists
-    g_list = gam.GAM(attributions=att_list, feature_labels=feat_labels_list)
+    g_list = gam.GAM(attributions=att_list, batchsize=100, feature_labels=feat_labels_list)
     g_list.generate()
 
     assert hasattr(g_list, "attributions")
@@ -74,7 +74,7 @@ def test_read_df_or_list():
     assert g_list.feature_labels == ["a1", "a2", "a3"]
     
     # Testing numpy arrays
-    g_arr = gam.GAM(attributions=att_arr, feature_labels=feat_labels_arr)
+    g_arr = gam.GAM(attributions=att_arr, batchsize=100, feature_labels=feat_labels_arr)
     g_arr.generate()
 
     assert hasattr(g_arr, "attributions")
@@ -85,7 +85,7 @@ def test_read_df_or_list():
     
     # Testing failure
     with pytest.raises(ValueError):
-        g_fail = gam.GAM(attributions=att_arr)
+        g_fail = gam.GAM(attributions=att_arr, batchsize=100)
         g_fail.generate()
 
 
@@ -219,4 +219,3 @@ def test_dask_vs_numpy():
     assert g_ddf.attributions.all() == g_df.attributions.all()
     assert g_ddf.feature_labels == g_df.feature_labels
     client.close()
-
