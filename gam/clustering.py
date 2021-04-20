@@ -410,7 +410,6 @@ class KMedoids:
         #            raise NotImplementedError()
         elif swap_medoids == "bandit":
             centers = self._swap_bandit(X, init_ids, dist_func, max_iter, tol, verbose)
-            print(centers)
             members, costs, tot_cost, dist_mat = _get_cost(X, centers, dist_func)
         elif swap_medoids == "pam":
             centers = _swap_pam(X, init_ids, dist_func, max_iter, tol, verbose)
@@ -539,32 +538,6 @@ class KMedoids:
 
         return count, mean, m2
 
-    def _dask_update(self, count, mean, m2, new_values):
-        """Batch updates mu and sigma for bandit PAM using Welford's algorithm
-        Refs:
-            https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
-            https://stackoverflow.com/questions/56402955/whats-the-formula-for-welfords-algorithm-for-variance-std-with-batch-updates
-
-        Args:
-            count (int): The number of reference points.
-            mean (int): The current mean
-            m2 (int): The updated mean
-            new_values (np.ndarray): The distance matrix
-
-        Returns:
-            count (int): The number of reference points.
-            mean (int): The old mean.
-            m2 (int): The new mean.
-        """
-        count += len(new_values)
-        # newvalues - oldMean
-        delta = da.subtract(new_values, mean)
-        mean += da.sum(np.divide(delta, count))
-        # newvalues - newMean
-        delta2 = da.subtract(new_values, mean)
-        m2 += da.sum(da.multiply(delta, delta2))
-
-        return count, mean, m2
 
     def _finalize(self, count, m2):
         """Finding variance for each new mean
@@ -583,22 +556,6 @@ class KMedoids:
         else:
             return variance, sample_variance
 
-    def _dask_finalize(self, count, m2):
-        """Finding variance for each new mean
-
-        Args:
-            count (int): The number of reference points.
-            m2 (int): The updated mean.
-
-        Returns:
-            variance (int): The variance of the medoids
-        """
-        variance = da.divide(m2, count)
-        sample_variance = da.divide(m2, (count - 1))
-        if count < 2:
-            return float("nan")
-        else:
-            return variance, sample_variance
 
     def _bandit_search_singles(self, X, dist_func, d_nearest, td, tmp_arr, j, i):
         """Inner loop for pam build and bandit build functions.
@@ -1090,7 +1047,7 @@ class KMedoids:
             centers (np.ndarray): The center medoids of the different clusters
             dist_func (callable): The distance function
             max_iter (int): Max number of times to check for a better medoid.
-            tol (float): [description]
+            tol (float): Tolerance denoting minimal acceptable amount of improvement, controls early stopping.
             verbose (bool): Determining whether or not to print out updates
 
         Returns:
