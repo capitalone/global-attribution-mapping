@@ -4,18 +4,15 @@ Originally adapted from https://raw.githubusercontent.com/shenxudeu/K_Medoids/ma
 FastPAM1 from: https://arxiv.org/pdf/2008.05171.pdf
 Bandit PAM from: https://arxiv.org/pdf/2006.06856.pdf
 """
-import dask.array as da
 import math
 import sys
 import time
-from copy import deepcopy, copy
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import numpy as np
-import dask_distance
 from sklearn.metrics import pairwise_distances
-from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
-from scipy.spatial.distance import cdist, pdist, squareform
+from scipy.spatial.distance import cdist
 
 from itertools import product
 
@@ -184,13 +181,7 @@ def _get_cost(X, centers_id, dist_func):
     """Return total cost and cost of each cluster"""
     dist_mat = np.zeros((len(X), len(centers_id)))
     # compute distance matrix
-    if isinstance(X, da.Array):
-        d = dask_pairwise_distances(
-            X, np.asarray(X[centers_id, :]), metric=dist_func, n_jobs=-1
-        )
-        dist_mat = d.compute()
-    else:
-        dist_mat = pairwise_distances(X, X[centers_id, :], metric=dist_func, n_jobs=-1)
+    dist_mat = pairwise_distances(X, X[centers_id, :], metric=dist_func, n_jobs=-1)
 
     mask = np.argmin(dist_mat, axis=1)
     # members = np.argmin(dist_mat, axis=1)
@@ -538,7 +529,6 @@ class KMedoids:
 
         return count, mean, m2
 
-
     def _finalize(self, count, m2):
         """Finding variance for each new mean
 
@@ -555,7 +545,6 @@ class KMedoids:
             return float("nan")
         else:
             return variance, sample_variance
-
 
     def _bandit_search_singles(self, X, dist_func, d_nearest, td, tmp_arr, j, i):
         """Inner loop for pam build and bandit build functions.
@@ -593,14 +582,6 @@ class KMedoids:
         Returns:
             tmp_arr (da.array): An array of the sum of distances from the centers.
         """
-        if j.size == 0:
-            j = int(0)
-        else:
-            j = int(j[0])
-        try:
-            tmp_arr[j] = tmp_arr[j].compute()
-        except:
-            tmp_arr[j] = tmp_arr[j]
         d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
         tmp_delta = d - d_nearest
         g = np.where(tmp_delta > 0, 0, tmp_delta)
@@ -621,39 +602,18 @@ class KMedoids:
         Returns:
             centers (np.ndarray): The centers of the clusters.
         """
-        if isinstance(X, np.ndarray):
-            n_samples = X.shape[0]
-            centers = np.zeros((n_clusters), dtype="int")
-            self.D = np.empty((n_samples, 1))
-            np.random.seed(100)
-            delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
-            lambda_centers = np.vectorize(
-                lambda i: self._find_medoids(
-                    X, n_clusters, dist_func, centers, verbose, n_samples, delta, i
-                ),
-                otypes="O",
-            )
-            centers = lambda_centers(np.arange(n_clusters))
-        else:
-            n_samples = X.shape[0]
-            centers = np.zeros((n_clusters), dtype="int")
-            self.D = np.empty((n_samples, 1))
-            np.random.seed(100)
-            delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
-            lambda_centers = np.vectorize(
-                lambda i: self._dask_find_medoids(
-                    np.array(X),
-                    n_clusters,
-                    dist_func,
-                    centers,
-                    verbose,
-                    n_samples,
-                    delta,
-                    i,
-                ),
-                otypes="O",
-            )
-            centers = lambda_centers(np.arange(n_clusters))
+        n_samples = X.shape[0]
+        centers = np.zeros((n_clusters), dtype="int")
+        self.D = np.empty((n_samples, 1))
+        np.random.seed(100)
+        delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
+        lambda_centers = np.vectorize(
+            lambda i: self._find_medoids(
+                X, n_clusters, dist_func, centers, verbose, n_samples, delta, i
+            ),
+            otypes="O",
+        )
+        centers = lambda_centers(np.arange(n_clusters))
 
         return centers
 
@@ -681,52 +641,6 @@ class KMedoids:
         if i == 0:
             td = d.sum()
             var = sigma_x[j] ** 2 * n_used_ref
-            n_used_ref, mu_x[j], var = self._update(n_used_ref, mu_x[j], var, d)
-            var, var_sample = self._finalize(n_used_ref, var)
-            sigma_x[j] = np.sqrt(var)
-        else:
-            tmp_delta = d - d_nearest[idx_ref]
-            g = np.where(tmp_delta > 0, 0, tmp_delta)
-            td = np.sum(g)
-            mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + self.batchsize)
-            sigma_x[j] = np.std(g)
-
-        return sigma_x[j], mu_x[j]
-
-    def _dask_looping_solution_ids(
-        self, X, idx_ref, dist_func, d_nearest, n_used_ref, mu_x, sigma_x, j, i
-    ):
-        """Iterating through all of the different solution_ids
-
-        Args:
-            X (da.ndarray): The Dataset.
-            idx_ref (da.ndarray): The random indices to be tested.
-            dist_func (callable): The distance function.
-            d_nearest (da.ndarray): The nearest points to the centers.
-            n_used_ref (int): The number of used references
-            mu_x (da.ndarray): The running mean.
-            sigma_x (da.ndarray): The confidence interval.
-            j (int): The solution ids
-            i (int): The index of the center currently trying to be found.
-
-        Returns:
-            mu_x (np.ndarray): The running mean.
-            sigma_x (np.ndarray): The confidence interval.
-        """
-        if j.size == 0:
-            j = int(0)
-        else:
-            j = int(j[0])
-        d = cdist(X[idx_ref, :], X[j, :].reshape(1, -1), metric=dist_func).squeeze()
-        if i == 0:
-            td = d.sum()
-            var = sigma_x[j] ** 2 * n_used_ref
-            try:
-                mu_x[j] = mu_x[j].compute()
-                var = var.compute()
-            except:
-                mu_x[j] = mu_x[j]
-                var = var
             n_used_ref, mu_x[j], var = self._update(n_used_ref, mu_x[j], var, d)
             var, var_sample = self._finalize(n_used_ref, var)
             sigma_x[j] = np.sqrt(var)
@@ -777,7 +691,15 @@ class KMedoids:
             )
             lmbda = np.vectorize(
                 lambda j: self._looping_solution_ids(
-                    X, idx_ref, dist_func, d_nearest, n_used_ref, mu_x, sigma_x, j, i
+                    X,
+                    sorted(idx_ref),
+                    dist_func,
+                    d_nearest,
+                    n_used_ref,
+                    mu_x,
+                    sigma_x,
+                    j,
+                    i,
                 ),
                 otypes="O",
             )
@@ -834,126 +756,11 @@ class KMedoids:
 
         return centers[i]
 
-    def _dask_find_medoids(
-        self, X, n_clusters, dist_func, centers, verbose, n_samples, delta, i
-    ):
-        """Finding all of the medoids
-
-        Args:
-            X (da.array): The Dataset.
-            n_clusters (int): The number of clusters.
-            dist_func (callable): The distance function.
-            centers (np.ndarray): The centers of the different clusters
-            verbose (bool): Print out updates
-            n_samples (int): The number of samples in the dataset.
-            delta (float): The threshold determining whether or not a value is going to be a part of a cluster.
-            i (int): The index of the center
-
-        Returns:
-            centers (np.ndarray): The list of centers for the different clusters.
-        """
-        # find all medoids
-        mu_x = np.zeros((n_samples))
-        sigma_x = np.zeros((n_samples))
-        if i == 0:
-            d_nearest = np.ones((n_samples))
-        else:
-            d_nearest = np.partition(self.D, 0)[:, 0]
-
-        # available candidates - S_tar - we draw samples from this population
-        unselected_ids = np.arange(n_samples)
-        unselected_ids = np.delete(unselected_ids, centers[0:i])
-        solution_ids = np.copy(unselected_ids)
-
-        # # available candidates - S_tar - we draw samples from this population
-        solution_ids = np.copy(unselected_ids)
-        n_used_ref = 0
-        while (n_used_ref < n_samples) and (solution_ids.shape[0] > 1):
-            # sample a batch from S_ref (for init, S_ref = X)
-            idx_ref = np.random.choice(
-                unselected_ids, size=self.batchsize, replace=True
-            )
-            ci_scale = math.sqrt(
-                (2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize)
-            )
-            outputs = da.apply_along_axis(
-                lambda j: self._dask_looping_solution_ids(
-                    np.array(X),
-                    idx_ref,
-                    dist_func,
-                    d_nearest,
-                    n_used_ref,
-                    mu_x,
-                    sigma_x,
-                    j,
-                    i,
-                ),
-                arr=solution_ids.reshape(-1, 1),
-                axis=1,
-            ).compute()
-            sigma_x, mu_x = outputs[:, 0], outputs[:, 1]
-
-            # Remove pts that are unlikely to be a solution
-            C_x = ci_scale * sigma_x
-            ucb = mu_x + C_x
-
-            # check if LCB of target is <= UCB of current best
-            lcb_target = mu_x - C_x
-            ucb_best = np.min(ucb)
-            solution_ids = np.where(lcb_target <= ucb_best)[0]
-
-            # clean up any center idx that crept in...
-            # for ic in centers:
-            #     if ic in solution_ids:
-            solution_ids = solution_ids[np.isin(solution_ids, centers, invert=True)]
-
-            n_used_ref = n_used_ref + self.batchsize
-
-        # finish search over the remaining candidates
-        if verbose:
-            print(
-                f"Final eval with candidates = {solution_ids.shape[0]}"
-            )  # , {solution_ids}")
-        if solution_ids.shape[0] == 1:
-            # save the single sample as a medoid
-            centers[i] = solution_ids  # probably a type error
-            d = (
-                cdist(X, X[centers[i], :].reshape(1, -1), metric=dist_func)
-                .squeeze()
-                .reshape(-1, 1)
-            )
-            d_best = np.array(d).reshape(-1, 1)
-        else:  # this is fastPam build - with far fewer pts to evaluate
-            tmp_arr = np.zeros((n_samples))
-            td = float("inf")
-            output_arr = da.apply_along_axis(
-                lambda j: self._dask_bandit_search_singles(
-                    np.array(X), dist_func, d_nearest, tmp_arr, j
-                ),
-                arr=da.array(solution_ids.reshape(-1, 1)),
-                axis=1,
-            ).compute()
-            idx = np.argmin(output_arr)
-            centers[i] = solution_ids[idx]
-            d_best = (
-                cdist(X, X[centers[i], :].reshape(1, -1), metric=dist_func)
-                .squeeze()
-                .reshape(-1, 1)
-            )
-        if i == [0]:
-            self.D = d_best
-        else:
-            self.D = np.concatenate((self.D, d_best), axis=1)
-        print("\t updated centers - ", centers)
-
-        return centers[i]
-
     def _swap_pairs(
         self,
         X,
         d,
         a_swap,
-        tmp_swap_pairs,
         dist_func,
         idx_ref,
         n_used_ref,
@@ -985,8 +792,6 @@ class KMedoids:
             sigma_x (np.ndarray): The confidence interval.
             Tih (float): The best medoid.
         """
-        if tmp_swap_pairs is not None:
-            a_swap = tmp_swap_pairs[a_swap[0] - 1]
         h = a_swap[0]
         i = a_swap[1]
         d_ji = d[:, i]
@@ -1067,10 +872,7 @@ class KMedoids:
             sigma_x = np.zeros((n_samples, n_clusters))
 
             done = True  # let's be optimistic we won't find a swap
-            #             if isinstance(X, np.ndarray):
             d = cdist(X, X[centers, :], metric=dist_func)
-            #             else:
-            #                 d = dask_distance.cdist(X, X[centers, :], metric=dist_func).compute()
             # cache nearest (D) and second nearest (E) distances to medoids
             tmp = np.partition(d, 1)
             D = tmp[:, 0]
@@ -1096,12 +898,11 @@ class KMedoids:
                 )
                 np.apply_along_axis(
                     lambda a_swap: self._swap_pairs(
-                        np.array(X),
+                        X,
                         d,
                         a_swap,
-                        None,
                         dist_func,
-                        idx_ref,
+                        sorted(idx_ref),
                         n_used_ref,
                         mu_x,
                         sigma_x,
@@ -1150,9 +951,8 @@ class KMedoids:
                     np.array(X),
                     d,
                     a_swap,
-                    None,
                     dist_func,
-                    idx_ref,
+                    sorted(idx_ref),
                     n_used_ref,
                     mu_x,
                     sigma_x,
