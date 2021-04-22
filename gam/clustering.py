@@ -9,8 +9,11 @@ import sys
 import time
 from copy import deepcopy
 
+import dask.array as da
+import dask_distance
 import matplotlib.pyplot as plt
 import numpy as np
+from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
 from sklearn.metrics import pairwise_distances
 from scipy.spatial.distance import cdist
 
