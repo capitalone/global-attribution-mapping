@@ -568,28 +568,6 @@ class KMedoids:
 
         return tmp_arr[j]
 
-    def _dask_bandit_search_singles(self, X, dist_func, d_nearest, tmp_arr, j):
-        """Inner loop for pam build and bandit build functions.
-
-        Args:
-            X (da.array): The dataset to be clustered.
-            dist_func (callable): The distance function
-            d_nearest (da.array): The distances for all of the centers
-            tmp_arr (da.array): the array of distances from each cluster center
-            j (float): The solution ids.
-            i (int): The index of the cluster.
-
-        Returns:
-            tmp_arr (da.array): An array of the sum of distances from the centers.
-        """
-        d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
-        tmp_delta = d - d_nearest
-        g = np.where(tmp_delta > 0, 0, tmp_delta)
-        tmp_td = np.sum(g)
-        tmp_arr[j] = tmp_td
-
-        return tmp_arr[j]
-
     def _init_bandit_build(self, X, n_clusters, dist_func, verbose):
         """Orchestrating the banditPAM build
 
