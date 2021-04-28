@@ -41,7 +41,7 @@ def test_banditPAM():
 
 def test_banditPAM_dask():
     # load the data
-    ddf = dd.read_csv("tests/banditPAM_data.csv").repartition(npartitions=4)
+    ddf = dd.read_csv("tests/banditPAM_data.csv", dtype={'ARTICLE_ID': 'object'}).repartition(npartitions=4)
     attributions = ddf.to_dask_array(lengths=True)
 
     """"Run kmedoids on sample attributions"""
