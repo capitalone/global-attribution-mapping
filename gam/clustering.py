@@ -555,7 +555,7 @@ class KMedoids:
         else:
             return variance, sample_variance
 
-    def _bandit_search_singles(self, X, dist_func, d_nearest, td, tmp_arr, j, i):
+    def _bandit_search_singles(self, X, dist_func, d_nearest, tmp_arr, j, i):
         """Inner loop for pam build and bandit build functions.
 
         Args:
@@ -729,10 +729,9 @@ class KMedoids:
             d_best = np.copy(d).reshape(-1, 1)
         else:  # this is fastPam build - with far fewer pts to evaluate
             tmp_arr = np.zeros((n_samples))
-            td = float("inf")
             lambda_singles = np.vectorize(
                 lambda j: self._bandit_search_singles(
-                    X, dist_func, d_nearest, td, tmp_arr, j, i
+                    X, dist_func, d_nearest, tmp_arr, j, i
                 ),
                 otypes="O",
             )
