@@ -594,6 +594,7 @@ class KMedoids:
         self.D = np.empty((n_samples, 1))
         np.random.seed(100)
         delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
+        # This will orchestrate the entire pipeline of finding the most central medoids. It will return a list of the centers.
         lambda_centers = np.vectorize(
             lambda i: self._find_medoids(
                 X, n_clusters, dist_func, centers, verbose, n_samples, delta, i
@@ -681,6 +682,7 @@ class KMedoids:
             ci_scale = math.sqrt(
                 (2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize)
             )
+            # This finds the distance of all points in idx_ref to all other points in the dataset.
             lmbda = np.vectorize(
                 lambda j: self._looping_solution_ids(
                     X,
@@ -729,6 +731,7 @@ class KMedoids:
             d_best = np.copy(d).reshape(-1, 1)
         else:  # this is fastPam build - with far fewer pts to evaluate
             tmp_arr = np.zeros((n_samples))
+            # This creates an array of the sum of distances from the centers.
             lambda_singles = np.vectorize(
                 lambda j: self._bandit_search_singles(
                     X, dist_func, d_nearest, tmp_arr, j, i
@@ -920,6 +923,7 @@ class KMedoids:
                 ci_scale = math.sqrt(
                     (2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize)
                 )
+                # This updates the running mean and confidence interval for each tuple in swap pairs
                 np.apply_along_axis(
                     lambda a_swap: self._swap_pairs(
                         X,
@@ -970,6 +974,7 @@ class KMedoids:
             )
 
             done = True  # let's be optimistic we won't find a swap
+            # Checking to see if there are better center points
             Tih = np.apply_along_axis(
                 lambda a_swap: self._swap_pairs(
                     np.array(X),
