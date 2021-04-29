@@ -41,7 +41,7 @@ setup(
     install_requires=[
         "dask[complete] == 2021.2.0",
         "dask-ml == 1.8.0",
-        "matplotlib > 2.2.0",
+        "matplotlib > 3.3.4",
         "pandas >= 1.1.3",
         "scikit-learn >= 0.23.2",
         "numpy >= 1.19.2",
