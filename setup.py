@@ -49,7 +49,6 @@ setup(
     long_description_content_type="text/markdown",
     license="Apache License 2.0",
     install_requires=[
-        "py == 1.8.2",
         "dask[complete] >= 2021.2.0",
         "matplotlib >= 3.3.4",
         "pandas >= 1.1.3",
