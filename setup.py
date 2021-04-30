@@ -24,18 +24,6 @@ CURR_DIR = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(CURR_DIR, "README.md"), encoding="utf-8") as file_open:
     LONG_DESCRIPTION = file_open.read()
 
-extras_require = {
-    "dask": [
-        "dask > 2021.1.0",
-        "dask[complete] == 2021.2.0",
-        "dask-ml == 1.8.0",
-        "matplotlib >= 3.3.4",
-        "pandas >= 1.1.3",
-        "scikit-learn >= 0.23.2",
-        "numpy >= 1.19.2"
-    ]
-}
-
 DESCRIPTION = "Global Explanations for Deep Neural Networks"
 
 setup(
@@ -51,11 +39,13 @@ setup(
     long_description_content_type="text/markdown",
     license="Apache License 2.0",
     install_requires=[
-        "matplotlib > 2.2.0",
-        "pandas > 0.25.1",
-        "scikit-learn > 0.21.3",
-        "numpy > 1.17.2",
+        "dask > 2021.1.0",
+        "dask[complete] == 2021.2.0",
+        "dask-ml == 1.8.0",
+        "matplotlib >= 3.3.4",
+        "pandas >= 1.1.3",
+        "scikit-learn >= 0.23.2",
+        "numpy >= 1.19.2"
     ],
-    extras_require=extras_require,
     python_requires=">=3.6",
 )
