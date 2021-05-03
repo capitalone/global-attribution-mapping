@@ -26,7 +26,7 @@ with open(os.path.join(CURR_DIR, "README.md"), encoding="utf-8") as file_open:
 
 DESCRIPTION = "Global Explanations for Deep Neural Networks"
 
-extras_require={
+extras_require = {
     "complete": [
         "dask[complete] >= 2021.2.0",
         "dask-distance >= 0.2.0",
@@ -36,7 +36,7 @@ extras_require={
 
 setup(
     name="gam",
-    version="1.1.1",
+    version="1.2.0",
     packages=["gam", "tests"],
     maintainer="Brian Barr",
     maintainer_email="brian.barr@capitalone.com",
@@ -50,7 +50,7 @@ setup(
         "matplotlib >= 3.3.4",
         "pandas >= 1.1.3",
         "scikit-learn >= 0.23.2",
-        "numpy >= 1.19.2"
+        "numpy >= 1.19.2",
     ],
     extras_require=extras_require,
     python_requires=">=3.6",
