@@ -9,15 +9,24 @@ import sys
 import time
 from copy import deepcopy
 
-import dask.array as da
-import dask_distance
+
 import matplotlib.pyplot as plt
 import numpy as np
-from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
+import warnings
+
 from sklearn.metrics import pairwise_distances
 from scipy.spatial.distance import cdist
 
 from itertools import product
+
+try:
+    from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
+    import dask.array as da
+    import dask_distance
+except:
+    dask_arr = False
+else:
+    dask_arr = True
 
 
 def update(existingAggregate, new_values):
@@ -382,6 +391,11 @@ class KMedoids:
             tot_cost (int): The total cost of the distance matrix.
             dist_mat (np.ndarray): The matrix of distances from each point to all other points in the dataset.
         """
+        if not dask_arr:
+            warnings.warn(
+                "Please try installing GAM with at least `[dask]` in order to use the dask functionality"
+            )
+
         n_samples, _ = X.shape
 
         # Get initial centers
