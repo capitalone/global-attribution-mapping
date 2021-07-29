@@ -10,7 +10,7 @@ import time
 from copy import deepcopy
 
 
-import matplotlib.pyplot as plt
+import plotly.express as px
 import numpy as np
 import warnings
 
@@ -342,22 +342,7 @@ class KMedoids:
         self.members = members
 
         if plotit:
-            _, ax = plt.subplots(1, 1)
-            colors = ["b", "g", "r", "c", "m", "y", "k"]
-            if self.n_clusters > len(colors):
-                raise ValueError("we need more colors")
-
-            for i in range(len(centers)):
-                X_c = X[members == i, :]
-                ax.scatter(X_c[:, 0], X_c[:, 1], c=colors[i], alpha=0.5, s=30)
-                ax.scatter(
-                    X[centers[i], 0],
-                    X[centers[i], 1],
-                    c=colors[i],
-                    alpha=1.0,
-                    s=250,
-                    marker="*",
-                )
+            px.scatter(x=X[centers, 0], y=X[centers, 1])
 
         return
 

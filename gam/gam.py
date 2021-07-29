@@ -9,7 +9,6 @@ import csv
 import logging
 from collections import Counter
 
-import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 from sklearn.metrics import pairwise_distances, silhouette_score
@@ -269,7 +268,6 @@ class GAM:
             df = pd.DataFrame(explanations_sorted, columns=["features", "importance"])
             fig = px.bar(df, x="importance", y="features", title=f"Explanation {idx}", orientation='h')
 
-            plt.tight_layout()
             if output_path_base:
                 fig.write_image(f"{output_path_base}.png")
 
