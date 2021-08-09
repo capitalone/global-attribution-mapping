@@ -52,6 +52,7 @@ setup(
         "pandas >= 1.1.3",
         "scikit-learn >= 0.23.2",
         "numpy >= 1.19.2",
+        "kaleido == 0.2.1",
     ],
     extras_require=extras_require,
     python_requires=">=3.6",
