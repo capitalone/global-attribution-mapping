@@ -38,7 +38,7 @@ extras_require = {
 
 setup(
     name="gam",
-    version="1.2.0",
+    version="1.3.0",
     packages=["gam", "tests"],
     maintainer="Brian Barr",
     maintainer_email="brian.barr@capitalone.com",
