@@ -5,14 +5,10 @@ TODO:
 - add integration tests
 - expand to use other distance metrics
 """
-import dask.array as da
-import dask.dataframe as dd
-
 import csv
 import logging
 from collections import Counter
 
-import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 from sklearn.metrics import pairwise_distances, silhouette_score
@@ -25,6 +21,14 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s: %(message)s", level=logging.INFO
 )
 
+try:
+    import dask.array as da
+    import dask.dataframe as dd
+    import plotly.express as px
+except ImportError:
+    DASK=False
+else:
+    DASK=True
 
 class GAM:
     """Generates global attributions
@@ -116,6 +120,8 @@ class GAM:
             feature labels (list): ("height", "weight")
         """
         if isinstance(self.attributions, dd.DataFrame):
+            if not DASK:
+                raise ImportError("You must install GAM[complete] if you want to use dask or plot")
             self.feature_labels = self.attributions.columns.tolist()
             self.attributions = self.attributions.to_dask_array(lengths=True)
         elif isinstance(self.attributions, pd.DataFrame):
@@ -248,30 +254,25 @@ class GAM:
             output_path_base: path to store plots
             display: option to display plot after generation, bool
         """
+        if not DASK:
+            raise ImportError("You must install GAM[complete] if you want to use dask or plot")
         if not hasattr(self, "explanations"):
             self.generate()
 
         fig_x, fig_y = 5, num_features
 
         for idx, explanations in enumerate(self.explanations):
-            _, axs = plt.subplots(1, 1, figsize=(fig_x, fig_y), sharey=True)
-
             explanations_sorted = sorted(
                 explanations, key=lambda x: x[-1], reverse=False
             )[-num_features:]
-            axs.barh(*zip(*explanations_sorted))
-            axs.set_xlim([0, 1])
-            axs.set_title("Explanation {}".format(idx + 1), size=10)
-            axs.set_xlabel("Importance", size=10)
+            df = pd.DataFrame(explanations_sorted, columns=["features", "importance"])
+            fig = px.bar(df, x="importance", y="features", title=f"Explanation {idx}", orientation='h')
 
-            plt.tight_layout()
             if output_path_base:
-                output_path = "{}_explanation_{}.png".format(output_path_base, idx + 1)
-                # bbox_inches option prevents labels cutting off
-                plt.savefig(output_path, bbox_inches="tight")
+                fig.write_image(f"{output_path_base}.png")
 
             if display:
-                plt.show()
+                fig.show()
 
     def generate(self):
         """Clusters local attributions into subpopulations with global explanations"""
