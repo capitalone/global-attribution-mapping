@@ -19,6 +19,15 @@ from scipy.spatial.distance import cdist
 
 from itertools import product
 
+try:
+    from dask_ml.metrics.pairwise import pairwise_distances as dask_pairwise_distances
+    import dask.array as da
+    import dask_distance
+except:
+    dask_arr = False
+else:
+    dask_arr = True
+
 
 def update(existingAggregate, new_values):
     """Batch updates mu and sigma for bandit PAM using Welford's algorithm
@@ -82,34 +91,75 @@ def _init_pam_build(X, n_clusters, dist_func):
     Run time O(kn^2)
     """
 
-    n_samples = X.shape[0]
+    i = 0
     centers = np.zeros((n_clusters), dtype="int")
-    D = np.empty((n_samples, 1))  # will append columns as we need/find them
 
-    # find first medoid - the most central point
     print("BUILD: Initializing first medoid - ")
-    td = float("inf")
-    for j in range(n_samples):
-        d = cdist(X, X[j, :].reshape(1, -1), metric=dist_func).squeeze()
-        tmp_td = d.sum()
-        if tmp_td < td:
-            td = tmp_td
-            centers[0] = j
-            D = d.reshape(-1, 1)
 
+    # X_pd = X_.compute()
+    X_pd = X
+    def init_medoid(X_, X_pd):
+        td_list = []
+        n_samples = X_.shape[0]
+        for j in range(n_samples):
+            d = cdist(X_pd, X_[j, :].reshape(1, -1), metric=dist_func).squeeze()
+            tmp_td = d.sum()
+            td_list.append(tmp_td)
+        return np.array(td_list)
+    
+    tds = X.map_blocks(init_medoid, X_pd, drop_axis=0)
+    centers[i] = np.argmin(tds.compute())
+    
     print(f"Found first medoid = {centers[0]}")
 
-    # find remaining medoids
-    print("Initializing other medoids - ")
+    d = cdist(X, X[centers[i], :].reshape(1, -1), metric=dist_func).squeeze()
+    D = d.reshape(-1, 1)
+
+    
+    def _search_singles(X_, dist_func, d_nearest):
+        """ Inner loop for pam build and bandit build functions """
+        td = float("inf")
+        td_list = []
+        rows = X_.shape[0]
+        for j in range(rows):
+            if X_[j, -1] == 0:
+                d = cdist(X_[:, :-1], X_[j, :-1].reshape(1, -1), metric=dist_func).squeeze()
+                tmp_delta = d - d_nearest
+                g = np.where(tmp_delta > 0, 0, tmp_delta)  #
+                tmp_td = np.sum(g)
+                td_list.append(tmp_td)
+        return np.array(td_list)
+    
+    print(f"Initializing other medoids - ")
     for i in range(1, n_clusters):
         d_nearest = np.partition(D, 0)[:, 0]
         print(i, d_nearest.min(), d_nearest.max())
-        # available candidates
-        unselected_ids = np.arange(n_samples)
-        unselected_ids = np.delete(unselected_ids, centers[0:i])
-        centers[i], d_best = search_singles(X, unselected_ids, dist_func, d_nearest)
+        
+        n_rows = X.shape[0]
+        
+        # rows = np.arange(n_rows)
+        # rows = np.delete(rows, centers[:i])
+        # tds = X[rows, :].map_blocks(_search_singles, X_pd, dist_func, d_nearest, drop_axis=0)
+
+        row_chunk_size = X.chunks[0][0]  # type: ignore
+
+        rows = da.arange(n_rows)
+        # print(da.isin( rows, centers[:i],).compute())
+        row_mask = da.isin(rows, centers[:i]).astype(int).reshape(len(X), 1)
+        # print(row_mask.compute())
+        X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
+        tds = X_copy.map_blocks(_search_singles, dist_func, d_nearest, drop_axis=0)
+        
+        # print(f"tds: {tds.compute()}")
+        td = np.argmin(tds.compute())
+        for c in centers[:i]:
+            if c <= td:
+                td += 1
+        centers[i] = td
+        d_best = cdist(X_pd, X_pd[td, :].reshape(1, -1), metric=dist_func).squeeze().reshape(-1, 1)
         D = np.concatenate((D, d_best), axis=1)
         print(f"updated centers - {centers}")
+    
     return centers
 
 
@@ -251,7 +301,7 @@ def _naive_swap(X, centers, dist_func, max_iter, tol, verbose):  # noqa:C901
     return centers, members, costs, tot_cost, dist_mat
 
 
-class KMedoids:
+class DaskKMedoids:
     """ "
     Main API of KMedoids Clustering
 
@@ -310,7 +360,6 @@ class KMedoids:
             plotit (bool, optional): Determining whether or not to plot the output. Defaults to False.
             verbose (bool, optional): Whether or not to print out updates on the algorithm. Defaults to True.
         """
-
         centers, members, _, _, _ = self.kmedoids_run_split(
             X,
             self.n_clusters,
@@ -361,6 +410,11 @@ class KMedoids:
             tot_cost (int): The total cost of the distance matrix.
             dist_mat (np.ndarray): The matrix of distances from each point to all other points in the dataset.
         """
+        if not dask_arr:
+            warnings.warn(
+                "Please try installing GAM with at least `[dask]` in order to use the dask functionality"
+            )
+
         n_samples, _ = X.shape
 
         # Get initial centers
@@ -382,7 +436,7 @@ class KMedoids:
 
         # Find which swap method we are using
         if swap_medoids == "stop":
-            print("Stop method was selected.  Exiting. clustering.py near line 251")
+            print("Stop method was selected.  Exiting. clustering.py near line 451")
             print(init_ids)
             sys.exit()
         #        elif self.swap_medoids:
