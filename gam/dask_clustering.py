@@ -96,7 +96,6 @@ def _init_pam_build(X, n_clusters, dist_func):
 
     print("BUILD: Initializing first medoid - ")
 
-    # X_pd = X_.compute()
     X_pd = X
     def init_medoid(X_, X_pd):
         td_list = []
@@ -136,21 +135,13 @@ def _init_pam_build(X, n_clusters, dist_func):
         print(i, d_nearest.min(), d_nearest.max())
         
         n_rows = X.shape[0]
-        
-        # rows = np.arange(n_rows)
-        # rows = np.delete(rows, centers[:i])
-        # tds = X[rows, :].map_blocks(_search_singles, X_pd, dist_func, d_nearest, drop_axis=0)
-
         row_chunk_size = X.chunks[0][0]  # type: ignore
 
         rows = da.arange(n_rows)
-        # print(da.isin( rows, centers[:i],).compute())
         row_mask = da.isin(rows, centers[:i]).astype(int).reshape(len(X), 1)
-        # print(row_mask.compute())
         X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
         tds = X_copy.map_blocks(_search_singles, dist_func, d_nearest, drop_axis=0)
         
-        # print(f"tds: {tds.compute()}")
         td = np.argmin(tds.compute())
         for c in centers[:i]:
             if c <= td:
@@ -628,13 +619,6 @@ class DaskKMedoids:
         np.random.seed(100)
         delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
         # This will orchestrate the entire pipeline of finding the most central medoids. It will return a list of the centers.
-        # lambda_centers = np.vectorize(
-        #     lambda i: self._find_medoids(
-        #         X, n_clusters, dist_func, centers, verbose, n_samples, delta, i
-        #     ),
-        #     otypes="O",
-        # )
-        # centers = lambda_centers(np.arange(n_clusters))
 
         for i in np.arange(n_clusters):
             centers[i] = self._find_medoids(
