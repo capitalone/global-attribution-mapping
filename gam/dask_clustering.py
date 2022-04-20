@@ -948,6 +948,13 @@ class DaskKMedoids:
                 list(product(unselected_ids, range(n_clusters))), dtype="int"
             )
 
+            rows = da.arange(n_samples)
+            row_chunk_size = X.chunks[0][0]
+
+            row_mask = da.isin(rows, centers).astype(int).reshape(len(X), 1)
+            X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
+
+
             n_used_ref = 0
             while (n_used_ref < n_samples) and (swap_pairs.shape[0] > 1):
                 # sample a batch from S_ref (for init, S_ref = X)
@@ -959,24 +966,60 @@ class DaskKMedoids:
                     (2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize)
                 )
                 # This updates the running mean and confidence interval for each tuple in swap pairs
-                np.apply_along_axis(
-                    lambda a_swap: self._swap_pairs(
-                        X,
-                        d,
-                        a_swap,
-                        dist_func,
-                        sorted(idx_ref),
-                        n_used_ref,
-                        mu_x,
-                        sigma_x,
-                        D,
-                        E,
-                        Tih_min,
-                        "h",
-                    ),
-                    1,
-                    swap_pairs,
-                )
+                X_ref = X[sorted(idx_ref), :].compute()
+                
+                def swap_pairs(X_, X_ref, d, dist_func, idx_ref, n_used_ref, D, E, Tih_min, h_i):
+                    n_samples = X_.shape[0]
+
+                    mu_x = np.zeros((rows, n_clusters))
+                    sigma_x = np.zeros((rows, n_clusters))
+
+                    if h_i == "h":
+                        for j in range(n_samples):
+                            if X_[j, -1] == 0:
+                                d_jh = cdist(X_ref[:, :-1], X_[h, :-1].reshape(1, -1), metric=dist_func).squeeze()
+
+                                for i in range(n_clusters):
+                                    d_ji = d[:, i]
+
+                                    K_jih = np.zeros(self.batchsize)
+                                    diff_ji = d_ji[idx_ref] - D[idx_ref]
+                                    idx = np.where(diff_ji > 0)
+
+                                    diff_jh = d_jh - D[idx_ref]
+                                    K_jih[idx] = np.minimum(diff_jh[idx], 0)
+
+                                    idx = np.where(diff_ji == 0)
+                                    K_jih[idx] = np.minimum(d_jh[idx], E[idx]) - D[idx]
+
+                                    # base-line update of mu and sigma
+                                    mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + np.sum(K_jih)) / (
+                                        n_used_ref + self.batchsize
+                                    )
+                                    sigma_x[h, i] = np.std(K_jih)
+
+                        return np.concatenate((sigma_x, mu_x), axis=1)
+                
+                X_copy.map_blocks(X_ref, d, dist_func, sorted(idx_ref), n_used_ref, D, E, Tih_min, "h")
+                # np.apply_along_axis(
+                #     lambda a_swap: self._swap_pairs(
+                #         X,
+                #         d,
+                #         a_swap,
+                #         dist_func,
+                #         sorted(idx_ref),
+                #         n_used_ref,
+                #         mu_x,
+                #         sigma_x,
+                #         D,
+                #         E,
+                #         Tih_min,
+                #         "h",
+                #     ),
+                #     1,
+                #     swap_pairs,
+                # )
+
 
                 # downseslect mu and sigma to match candidate pairs
                 flat_indices = np.ravel_multi_index(
@@ -997,6 +1040,10 @@ class DaskKMedoids:
                 # tmp_ids = np.where(lcb_target <= ucb_best)[0]
                 tmp_ids = np.where(lcb_target <= ucb_best)[0]
                 swap_pairs = swap_pairs[tmp_ids]
+
+                row_mask = da.isin(rows, swap_pairs[:, 0]).astype(int).reshape(len(X), 1)
+                X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
+
                 print("\tremaining candidates - ", tmp_ids.shape[0])  # , tmp_ids)
 
                 n_used_ref = n_used_ref + self.batchsize
