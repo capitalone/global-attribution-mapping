@@ -628,13 +628,18 @@ class DaskKMedoids:
         np.random.seed(100)
         delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
         # This will orchestrate the entire pipeline of finding the most central medoids. It will return a list of the centers.
-        lambda_centers = np.vectorize(
-            lambda i: self._find_medoids(
+        # lambda_centers = np.vectorize(
+        #     lambda i: self._find_medoids(
+        #         X, n_clusters, dist_func, centers, verbose, n_samples, delta, i
+        #     ),
+        #     otypes="O",
+        # )
+        # centers = lambda_centers(np.arange(n_clusters))
+
+        for i in np.arange(n_clusters):
+            centers[i] = self._find_medoids(
                 X, n_clusters, dist_func, centers, verbose, n_samples, delta, i
-            ),
-            otypes="O",
-        )
-        centers = lambda_centers(np.arange(n_clusters))
+            )
 
         return centers
 
@@ -700,8 +705,16 @@ class DaskKMedoids:
         # available candidates - S_tar - we draw samples from this population
         unselected_ids = np.arange(n_samples)
         unselected_ids = np.delete(unselected_ids, centers[0:i])
+
         # solution candidates - S_solution
         solution_ids = np.copy(unselected_ids)
+
+        rows = da.arange(n_samples)
+        row_mask = da.isin(rows, solution_ids).astype(int).reshape(len(X), 1)
+
+        row_chunk_size = X.chunks[0][0]
+        X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
+
         n_used_ref = 0
         while (n_used_ref < n_samples) and (solution_ids.shape[0] > 1):
             # sample a batch from S_ref (for init, S_ref = X)
@@ -712,22 +725,43 @@ class DaskKMedoids:
                 (2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize)
             )
             # This finds the distance of all points in idx_ref to all other points in the dataset.
-            lmbda = np.vectorize(
-                lambda j: self._looping_solution_ids(
-                    X,
-                    sorted(idx_ref),
-                    dist_func,
-                    d_nearest,
-                    n_used_ref,
-                    mu_x,
-                    sigma_x,
-                    j,
-                    i,
-                ),
-                otypes="O",
-            )
-            lmbda(solution_ids)
+            
+            X_ref = X[sorted(idx_ref), :].compute()
 
+            def looping_solution_ids(X_, X_ref, dist_func, d_nearest, n_used_ref, i):
+                rows = X_.shape[0]
+                mu_x = np.zeros((rows))
+                sigma_x = np.zeros((rows))
+
+                for j in range(rows):
+                    if X_[j, -1] == 0:
+                        d = cdist(X_ref, X_[j, :-1].reshape(1, -1), metric=dist_func).squeeze()
+
+                        if i == 0:
+                            td = td.sum()
+                            var = sigma_x[j] ** 2 * n_used_ref
+                            n_used_ref, mu_x[j], var = self._update(n_used_ref, mu_x[j], var, d)
+                            var, var_sample = self._finalize(n_used_ref, var)
+                            sigma_x[j] = np.sqrt(var)
+                        else:
+                            tmp_delta = d - d_nearest 
+                            g = np.where(tmp_delta > 0, 0, tmp_delta)
+                            td = np.sum(g)
+                            mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + self.batchsize)
+                            sigma_x[j] = np.std(g)
+                
+                return np.concatenate((sigma_x.reshape(-1, 1), mu_x.reshape(-1, 1)), axis=1)
+
+
+            if solution_ids[0] == 0:
+                i = 0
+            else:
+                i = -1
+
+            xs = X_copy.map_blocks(looping_solution_ids, X_ref, dist_func, d_nearest[idx_ref], n_used_ref, i)
+
+            sigma_x = xs[:, 0]
+            mu_x = xs[:, 1]
             # Remove pts that are unlikely to be a solution
             C_x = ci_scale * sigma_x
             ucb = mu_x + C_x
@@ -741,6 +775,9 @@ class DaskKMedoids:
             for ic in centers:
                 if ic in solution_ids:
                     solution_ids = np.delete(solution_ids, int(ic))
+                    
+                    row_mask = da.isin(rows, solution_ids).astype(int).reshape(len(X), 1)
+                    X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
 
             n_used_ref = n_used_ref + self.batchsize
 
