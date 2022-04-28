@@ -95,60 +95,48 @@ def _init_pam_build(X, n_clusters, dist_func):
     centers = np.zeros((n_clusters), dtype="int")
 
     print("BUILD: Initializing first medoid - ")
-
-    X_pd = X
-    def init_medoid(X_, X_pd):
-        td_list = []
-        n_samples = X_.shape[0]
-        for j in range(n_samples):
-            d = cdist(X_pd, X_[j, :].reshape(1, -1), metric=dist_func).squeeze()
-            tmp_td = d.sum()
-            td_list.append(tmp_td)
-        return np.array(td_list)
     
-    tds = X.map_blocks(init_medoid, X_pd, drop_axis=0)
-    centers[i] = np.argmin(tds.compute())
+    def map_cdist(X, x_j):
+        return cdist(X, x_j.reshape(1, -1), metric=dist_func)
+
+    n_samples = X.shape[0]
+    tds = []
+    for j in range(n_samples):
+        tds.append(X.map_blocks(map_cdist, X[j, :]).squeeze().sum())
+    
+    centers[i] = np.argmin(tds)
     
     print(f"Found first medoid = {centers[0]}")
 
     d = cdist(X, X[centers[i], :].reshape(1, -1), metric=dist_func).squeeze()
     D = d.reshape(-1, 1)
-
-    
-    def _search_singles(X_, dist_func, d_nearest):
-        """ Inner loop for pam build and bandit build functions """
-        td = float("inf")
-        td_list = []
-        rows = X_.shape[0]
-        for j in range(rows):
-            if X_[j, -1] == 0:
-                d = cdist(X_[:, :-1], X_[j, :-1].reshape(1, -1), metric=dist_func).squeeze()
-                tmp_delta = d - d_nearest
-                g = np.where(tmp_delta > 0, 0, tmp_delta)  #
-                tmp_td = np.sum(g)
-                td_list.append(tmp_td)
-        return np.array(td_list)
     
     print(f"Initializing other medoids - ")
     for i in range(1, n_clusters):
+        td = float("inf")
+
         d_nearest = np.partition(D, 0)[:, 0]
         print(i, d_nearest.min(), d_nearest.max())
         
-        n_rows = X.shape[0]
-        row_chunk_size = X.chunks[0][0]  # type: ignore
+        unselected_ids = np.arange(n_samples)
+        unselected_ids = np.delete(unselected_ids, centers[0:i])
 
-        rows = da.arange(n_rows)
-        row_mask = da.isin(rows, centers[:i]).astype(int).reshape(len(X), 1)
-        X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
-        tds = X_copy.map_blocks(_search_singles, dist_func, d_nearest, drop_axis=0)
-        
-        td = np.argmin(tds.compute())
-        for c in centers[:i]:
-            if c <= td:
-                td += 1
-        centers[i] = td
-        d_best = cdist(X_pd, X_pd[td, :].reshape(1, -1), metric=dist_func).squeeze().reshape(-1, 1)
+        for j in unselected_ids:
+            d = X.map_blocks(map_cdist, X[j, :]).squeeze()
+
+            d = np.array(d)
+            tmp_delta = d - d_nearest
+            g = np.where(tmp_delta > 0, 0, tmp_delta)
+            tmp_td = np.sum(g)
+
+            if tmp_td < td:
+                td = tmp_td
+                idx_best = j
+                d_best = np.copy(d).reshape(-1, 1)
+            
+        centers[i] = idx_best
         D = np.concatenate((D, d_best), axis=1)
+
         print(f"updated centers - {centers}")
     
     return centers
@@ -421,15 +409,17 @@ class DaskKMedoids:
         init_elapsed = init_end - init_start
 
         if verbose:
-            print("Initial centers are ", init_ids)
-            print(f"Finished init  {init_elapsed} sec.")
+            print(f"Initial centers are {init_ids}.")
+            print(f"Finished init {init_elapsed} sec.")
         init_ids = list(init_ids)
 
         # Find which swap method we are using
         if swap_medoids == "stop":
             print("Stop method was selected.  Exiting. clustering.py near line 451")
             print(init_ids)
-            sys.exit()
+            return init_ids, None, None, None, None
+
+            # sys.exit()
         #        elif self.swap_medoids:
         #            raise NotImplementedError()
         elif swap_medoids == "bandit":
@@ -694,13 +684,14 @@ class DaskKMedoids:
         solution_ids = np.copy(unselected_ids)
 
         rows = da.arange(n_samples)
-        row_mask = da.isin(rows, solution_ids).astype(int).reshape(len(X), 1)
+        row_mask = da.isin(rows, solution_ids).astype(int).reshape(n_samples, 1)
 
         row_chunk_size = X.chunks[0][0]
         X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
 
         n_used_ref = 0
         while (n_used_ref < n_samples) and (solution_ids.shape[0] > 1):
+
             # sample a batch from S_ref (for init, S_ref = X)
             idx_ref = np.random.choice(
                 unselected_ids, size=self.batchsize, replace=True
@@ -709,43 +700,72 @@ class DaskKMedoids:
                 (2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize)
             )
             # This finds the distance of all points in idx_ref to all other points in the dataset.
-            
+            # lmbda = np.vectorize(
+            #     lambda j: self._looping_solution_ids(
+            #         X,
+            #         sorted(idx_ref),
+            #         dist_func,
+            #         d_nearest,
+            #         n_used_ref,
+            #         mu_x,
+            #         sigma_x,
+            #         j,
+            #         i,
+            #     ),
+            #     otypes="O",
+            # )
+            # lmbda(solution_ids)
+
             X_ref = X[sorted(idx_ref), :].compute()
 
-            def looping_solution_ids(X_, X_ref, dist_func, d_nearest, n_used_ref, i):
+            def looping_solution_ids_1(X_, x_ref, n_used_ref):
                 rows = X_.shape[0]
                 mu_x = np.zeros((rows))
                 sigma_x = np.zeros((rows))
-
                 for j in range(rows):
-                    if X_[j, -1] == 0:
-                        d = cdist(X_ref, X_[j, :-1].reshape(1, -1), metric=dist_func).squeeze()
+                    try:
+                        d = cdist(x_ref, X_[j, :-1].reshape(1, -1), metric=dist_func).squeeze()
 
-                        if i == 0:
-                            td = td.sum()
-                            var = sigma_x[j] ** 2 * n_used_ref
-                            n_used_ref, mu_x[j], var = self._update(n_used_ref, mu_x[j], var, d)
-                            var, var_sample = self._finalize(n_used_ref, var)
-                            sigma_x[j] = np.sqrt(var)
-                        else:
-                            tmp_delta = d - d_nearest 
-                            g = np.where(tmp_delta > 0, 0, tmp_delta)
-                            td = np.sum(g)
-                            mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + self.batchsize)
-                            sigma_x[j] = np.std(g)
-                
+                        td = d.sum()
+                        var = sigma_x[j] ** 2 * n_used_ref
+                        n_used_ref, mu_x[j], var = self._update(n_used_ref, mu_x[j], var, d)
+                        var, var_sample = self._finalize(n_used_ref, var)
+                        sigma_x[j] = np.sqrt(var)
+                    except ValueError:
+                        pass
+
                 return np.concatenate((sigma_x.reshape(-1, 1), mu_x.reshape(-1, 1)), axis=1)
+        
 
-
-            if solution_ids[0] == 0:
-                i = 0
+            if i == 0:
+                X_copy = X_copy.compute_chunk_sizes()
+                xs = X_copy.map_blocks(looping_solution_ids_1, X_ref, n_used_ref)
+                sigma_x = xs[:, 0].compute()
+                mu_x = xs[:, 1].compute()
             else:
-                i = -1
-
-            xs = X_copy.map_blocks(looping_solution_ids, X_ref, dist_func, d_nearest[idx_ref], n_used_ref, i)
-
-            sigma_x = xs[:, 0]
-            mu_x = xs[:, 1]
+                lmbda = np.vectorize(
+                    lambda j: self._looping_solution_ids(
+                        X,
+                        sorted(idx_ref),
+                        dist_func,
+                        d_nearest,
+                        n_used_ref,
+                        mu_x,
+                        sigma_x,
+                        j,
+                        i,
+                    ),
+                    otypes="O",
+                )
+                lmbda(solution_ids)
+                # tmp_delta = xs[:, 0].compute()
+                # for j, tmp in enumerate(tmp_delta):
+                #     g = np.where(tmp_delta > 0, 0, tmp_delta)
+                #     td = np.sum(g)
+                #     mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + self.batchsize)
+                #     sigma_x[j] = np.std(g)
+            # print(f"sigma x: {sigma_x.shape}")
+            # print(f"mu x: {mu_x.shape}")
             # Remove pts that are unlikely to be a solution
             C_x = ci_scale * sigma_x
             ucb = mu_x + C_x
@@ -753,14 +773,18 @@ class DaskKMedoids:
             # check if LCB of target is <= UCB of current best
             lcb_target = mu_x - C_x
             ucb_best = ucb.min()
+            # print(f"lcb target: {lcb_target}")
             solution_ids = np.where(lcb_target <= ucb_best)[0]
+            
 
             # clean up any center idx that crept in...
             for ic in centers:
+                # print(f"find medoids ic: {ic}")
+                # print(f"solution ids: {solution_ids}")
                 if ic in solution_ids:
                     solution_ids = np.delete(solution_ids, int(ic))
-                    
-                    row_mask = da.isin(rows, solution_ids).astype(int).reshape(len(X), 1)
+                    rows = da.arange(n_samples)
+                    row_mask = da.isin(rows, solution_ids).astype(int).reshape(n_samples, 1)
                     X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
 
             n_used_ref = n_used_ref + self.batchsize
@@ -796,6 +820,9 @@ class DaskKMedoids:
             self.D = d_best
         else:
             self.D = np.concatenate((self.D, d_best), axis=1)
+        # print(f"ucb best: {ucb_best}")
+
+        # print(f"solution ids: {solution_ids}")
         print("\t updated centers - ", centers)
 
         return centers[i]
@@ -932,11 +959,11 @@ class DaskKMedoids:
                 list(product(unselected_ids, range(n_clusters))), dtype="int"
             )
 
-            rows = da.arange(n_samples)
-            row_chunk_size = X.chunks[0][0]
+            # rows = da.arange(n_samples)
+            # row_chunk_size = X.chunks[0][0]
 
-            row_mask = da.isin(rows, centers).astype(int).reshape(len(X), 1)
-            X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
+            # row_mask = da.isin(rows, centers).astype(int).reshape(len(X), 1)
+            # X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
 
 
             n_used_ref = 0
@@ -950,59 +977,59 @@ class DaskKMedoids:
                     (2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize)
                 )
                 # This updates the running mean and confidence interval for each tuple in swap pairs
-                X_ref = X[sorted(idx_ref), :].compute()
+                # X_ref = X[sorted(idx_ref), :].compute()
                 
-                def swap_pairs(X_, X_ref, d, dist_func, idx_ref, n_used_ref, D, E, Tih_min, h_i):
-                    n_samples = X_.shape[0]
+                # def swap_pairs(X_, X_ref, d, dist_func, idx_ref, n_used_ref, D, E, Tih_min, h_i):
+                #     n_samples = X_.shape[0]
 
-                    mu_x = np.zeros((rows, n_clusters))
-                    sigma_x = np.zeros((rows, n_clusters))
+                #     mu_x = np.zeros((rows, n_clusters))
+                #     sigma_x = np.zeros((rows, n_clusters))
 
-                    if h_i == "h":
-                        for j in range(n_samples):
-                            if X_[j, -1] == 0:
-                                d_jh = cdist(X_ref[:, :-1], X_[h, :-1].reshape(1, -1), metric=dist_func).squeeze()
+                #     if h_i == "h":
+                #         for j in range(n_samples):
+                #             if X_[j, -1] == 0:
+                #                 d_jh = cdist(X_ref[:, :-1], X_[h, :-1].reshape(1, -1), metric=dist_func).squeeze()
 
-                                for i in range(n_clusters):
-                                    d_ji = d[:, i]
+                #                 for i in range(n_clusters):
+                #                     d_ji = d[:, i]
 
-                                    K_jih = np.zeros(self.batchsize)
-                                    diff_ji = d_ji[idx_ref] - D[idx_ref]
-                                    idx = np.where(diff_ji > 0)
+                #                     K_jih = np.zeros(self.batchsize)
+                #                     diff_ji = d_ji[idx_ref] - D[idx_ref]
+                #                     idx = np.where(diff_ji > 0)
 
-                                    diff_jh = d_jh - D[idx_ref]
-                                    K_jih[idx] = np.minimum(diff_jh[idx], 0)
+                #                     diff_jh = d_jh - D[idx_ref]
+                #                     K_jih[idx] = np.minimum(diff_jh[idx], 0)
 
-                                    idx = np.where(diff_ji == 0)
-                                    K_jih[idx] = np.minimum(d_jh[idx], E[idx]) - D[idx]
+                #                     idx = np.where(diff_ji == 0)
+                #                     K_jih[idx] = np.minimum(d_jh[idx], E[idx]) - D[idx]
 
-                                    # base-line update of mu and sigma
-                                    mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + np.sum(K_jih)) / (
-                                        n_used_ref + self.batchsize
-                                    )
-                                    sigma_x[h, i] = np.std(K_jih)
+                #                     # base-line update of mu and sigma
+                #                     mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + np.sum(K_jih)) / (
+                #                         n_used_ref + self.batchsize
+                #                     )
+                #                     sigma_x[h, i] = np.std(K_jih)
 
-                        return np.concatenate((sigma_x, mu_x), axis=1)
+                #         return np.concatenate((sigma_x, mu_x), axis=1)
                 
-                X_copy.map_blocks(X_ref, d, dist_func, sorted(idx_ref), n_used_ref, D, E, Tih_min, "h")
-                # np.apply_along_axis(
-                #     lambda a_swap: self._swap_pairs(
-                #         X,
-                #         d,
-                #         a_swap,
-                #         dist_func,
-                #         sorted(idx_ref),
-                #         n_used_ref,
-                #         mu_x,
-                #         sigma_x,
-                #         D,
-                #         E,
-                #         Tih_min,
-                #         "h",
-                #     ),
-                #     1,
-                #     swap_pairs,
-                # )
+                # X_copy.map_blocks(swap_pairs, X_ref, d, dist_func, sorted(idx_ref), n_used_ref, D, E, Tih_min, "h")
+                np.apply_along_axis(
+                    lambda a_swap: self._swap_pairs(
+                        X,
+                        d,
+                        a_swap,
+                        dist_func,
+                        sorted(idx_ref),
+                        n_used_ref,
+                        mu_x,
+                        sigma_x,
+                        D,
+                        E,
+                        Tih_min,
+                        "h",
+                    ),
+                    1,
+                    swap_pairs,
+                )
 
 
                 # downseslect mu and sigma to match candidate pairs
@@ -1025,8 +1052,8 @@ class DaskKMedoids:
                 tmp_ids = np.where(lcb_target <= ucb_best)[0]
                 swap_pairs = swap_pairs[tmp_ids]
 
-                row_mask = da.isin(rows, swap_pairs[:, 0]).astype(int).reshape(len(X), 1)
-                X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
+                # row_mask = da.isin(rows, swap_pairs[:, 0]).astype(int).reshape(len(X), 1)
+                # X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
 
                 print("\tremaining candidates - ", tmp_ids.shape[0])  # , tmp_ids)
 

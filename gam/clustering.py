@@ -376,15 +376,16 @@ class KMedoids:
         init_elapsed = init_end - init_start
 
         if verbose:
-            print("Initial centers are ", init_ids)
-            print(f"Finished init  {init_elapsed} sec.")
+            print(f"Initial centers are {init_ids}.")
+            print(f"Finished init {init_elapsed} sec.")
         init_ids = list(init_ids)
 
         # Find which swap method we are using
         if swap_medoids == "stop":
             print("Stop method was selected.  Exiting. clustering.py near line 251")
             print(init_ids)
-            sys.exit()
+            return init_ids, None, None, None, None
+            # sys.exit()
         #        elif self.swap_medoids:
         #            raise NotImplementedError()
         elif swap_medoids == "bandit":
@@ -673,7 +674,6 @@ class KMedoids:
                 otypes="O",
             )
             lmbda(solution_ids)
-
             # Remove pts that are unlikely to be a solution
             C_x = ci_scale * sigma_x
             ucb = mu_x + C_x
@@ -685,6 +685,8 @@ class KMedoids:
 
             # clean up any center idx that crept in...
             for ic in centers:
+                # print(f"find medoids ic: {ic}")
+                # print(f"solution ids: {solution_ids}")
                 if ic in solution_ids:
                     solution_ids = np.delete(solution_ids, int(ic))
 
@@ -721,6 +723,8 @@ class KMedoids:
             self.D = d_best
         else:
             self.D = np.concatenate((self.D, d_best), axis=1)
+        # print(f"ucb best: {ucb_best}")
+        # print(f"solution ids: {solution_ids}")
         print("\t updated centers - ", centers)
 
         return centers[i]
