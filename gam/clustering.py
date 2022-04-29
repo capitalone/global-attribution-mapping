@@ -289,6 +289,7 @@ class KMedoids:
         tol=0.0001,
         init_medoids=None,
         swap_medoids=None,
+        seed=123,
         verbose=False,
     ):
         self.n_clusters = n_clusters
@@ -301,6 +302,7 @@ class KMedoids:
         self.members = None
         self.init_medoids = init_medoids
         self.swap_medoids = swap_medoids
+        self.rng = np.random.default_rng(seed)
 
     def fit(self, X, plotit=False, verbose=True):
         """Fits kmedoids with the option for plotting
@@ -572,7 +574,7 @@ class KMedoids:
         n_samples = X.shape[0]
         centers = np.zeros((n_clusters), dtype="int")
         self.D = np.empty((n_samples, 1))
-        np.random.seed(100)
+        # np.random.seed(self.seed)
         delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
         # This will orchestrate the entire pipeline of finding the most central medoids. It will return a list of the centers.
         lambda_centers = np.vectorize(
@@ -640,6 +642,7 @@ class KMedoids:
         Returns:
             centers (np.ndarray): The list of centers for the different clusters.
         """
+        # np.random.seed(self.seed)
         mu_x = np.zeros((n_samples))
         sigma_x = np.zeros((n_samples))
         d_nearest = np.partition(self.D, 0)[:, 0]
@@ -652,7 +655,7 @@ class KMedoids:
         n_used_ref = 0
         while (n_used_ref < n_samples) and (solution_ids.shape[0] > 1):
             # sample a batch from S_ref (for init, S_ref = X)
-            idx_ref = np.random.choice(
+            idx_ref = self.rng.choice(
                 unselected_ids, size=self.batchsize, replace=True
             )
             ci_scale = math.sqrt(
@@ -689,7 +692,8 @@ class KMedoids:
                 # print(f"solution ids: {solution_ids}")
                 if ic in solution_ids:
                     solution_ids = np.delete(solution_ids, int(ic))
-
+            if i == 0:
+                print(f"solution ids: {solution_ids}")
             n_used_ref = n_used_ref + self.batchsize
 
         # finish search over the remaining candidates
@@ -831,6 +835,7 @@ class KMedoids:
         Returns:
             centers (np.ndarray): The updated center medoids
         """
+        # np.random.seed(self.seed)
         done = False
         n_samples = X.shape[0]
         n_clusters = len(centers)
@@ -864,7 +869,7 @@ class KMedoids:
             n_used_ref = 0
             while (n_used_ref < n_samples) and (swap_pairs.shape[0] > 1):
                 # sample a batch from S_ref (for init, S_ref = X)
-                idx_ref = np.random.choice(
+                idx_ref = self.rng.choice(
                     unselected_ids, size=self.batchsize, replace=True
                 )
 

@@ -318,6 +318,7 @@ class DaskKMedoids:
         tol=0.0001,
         init_medoids=None,
         swap_medoids=None,
+        seed=123,
         verbose=False,
     ):
         self.n_clusters = n_clusters
@@ -330,6 +331,8 @@ class DaskKMedoids:
         self.members = None
         self.init_medoids = init_medoids
         self.swap_medoids = swap_medoids
+        self.rng = np.random.default_rng(seed)
+
 
     def fit(self, X, plotit=False, verbose=True):
         """Fits kmedoids with the option for plotting
@@ -606,7 +609,7 @@ class DaskKMedoids:
         n_samples = X.shape[0]
         centers = np.zeros((n_clusters), dtype="int")
         self.D = np.empty((n_samples, 1))
-        np.random.seed(100)
+        # np.random.seed(100)
         delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
         # This will orchestrate the entire pipeline of finding the most central medoids. It will return a list of the centers.
 
@@ -693,7 +696,7 @@ class DaskKMedoids:
         while (n_used_ref < n_samples) and (solution_ids.shape[0] > 1):
 
             # sample a batch from S_ref (for init, S_ref = X)
-            idx_ref = np.random.choice(
+            idx_ref = self.rng.choice(
                 unselected_ids, size=self.batchsize, replace=True
             )
             ci_scale = math.sqrt(
@@ -724,13 +727,14 @@ class DaskKMedoids:
                 sigma_x = np.zeros((rows))
                 for j in range(rows):
                     try:
-                        d = cdist(x_ref, X_[j, :-1].reshape(1, -1), metric=dist_func).squeeze()
+                        if X_[j, -1] == 0:
+                            d = cdist(x_ref, X_[j, :-1].reshape(1, -1), metric=dist_func).squeeze()
 
-                        td = d.sum()
-                        var = sigma_x[j] ** 2 * n_used_ref
-                        n_used_ref, mu_x[j], var = self._update(n_used_ref, mu_x[j], var, d)
-                        var, var_sample = self._finalize(n_used_ref, var)
-                        sigma_x[j] = np.sqrt(var)
+                            td = d.sum()
+                            var = sigma_x[j] ** 2 * n_used_ref
+                            n_used_ref, mu_x[j], var = self._update(n_used_ref, mu_x[j], var, d)
+                            var, var_sample = self._finalize(n_used_ref, var)
+                            sigma_x[j] = np.sqrt(var)
                     except ValueError:
                         pass
 
@@ -787,6 +791,8 @@ class DaskKMedoids:
                     row_mask = da.isin(rows, solution_ids).astype(int).reshape(n_samples, 1)
                     X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
 
+            if i == 0:
+                print(f"solution ids: {solution_ids}")
             n_used_ref = n_used_ref + self.batchsize
 
         # finish search over the remaining candidates
@@ -969,7 +975,7 @@ class DaskKMedoids:
             n_used_ref = 0
             while (n_used_ref < n_samples) and (swap_pairs.shape[0] > 1):
                 # sample a batch from S_ref (for init, S_ref = X)
-                idx_ref = np.random.choice(
+                idx_ref = self.rng.choice(
                     unselected_ids, size=self.batchsize, replace=True
                 )
 

@@ -34,8 +34,8 @@ print(f"\n--------- running kmedoids ------------\n")
 """"Run kmedoids on sample attributions"""
 kmed2 = KMedoids(
     5,
-    # dist_func="euclidean",
-    dist_func=spearman_squared_distance,
+    dist_func="euclidean",
+    # dist_func=spearman_squared_distance,
     batchsize=100,
     max_iter=10,
     tol=0.01,
@@ -66,8 +66,8 @@ print(f"\n--------- running dask kmedoids ------------\n")
 """"Run kmedoids on sample attributions"""
 kmed2 = DaskKMedoids(
     5,
-    # dist_func="euclidean",
-    dist_func=spearman_squared_distance,
+    dist_func="euclidean",
+    # dist_func=spearman_squared_distance,
     batchsize=100,
     max_iter=10,
     tol=0.01,
