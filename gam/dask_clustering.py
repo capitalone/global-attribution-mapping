@@ -331,8 +331,7 @@ class DaskKMedoids:
         self.members = None
         self.init_medoids = init_medoids
         self.swap_medoids = swap_medoids
-        self.rng = np.random.default_rng(seed)
-
+        self.seed = seed
 
     def fit(self, X, plotit=False, verbose=True):
         """Fits kmedoids with the option for plotting
@@ -609,14 +608,16 @@ class DaskKMedoids:
         n_samples = X.shape[0]
         centers = np.zeros((n_clusters), dtype="int")
         self.D = np.empty((n_samples, 1))
-        # np.random.seed(100)
+        # np.random.seed(self.seed)
         delta = 1.0 / (1e3 * n_samples)  # p 5 'Algorithmic details'
         # This will orchestrate the entire pipeline of finding the most central medoids. It will return a list of the centers.
-
-        for i in np.arange(n_clusters):
-            centers[i] = self._find_medoids(
+        lambda_centers = np.vectorize(
+            lambda i: self._find_medoids(
                 X, n_clusters, dist_func, centers, verbose, n_samples, delta, i
-            )
+            ),
+            otypes="O",
+        )
+        centers = lambda_centers(np.arange(n_clusters))
 
         return centers
 
@@ -675,6 +676,7 @@ class DaskKMedoids:
         Returns:
             centers (np.ndarray): The list of centers for the different clusters.
         """
+        # np.random.seed(self.seed)
         mu_x = np.zeros((n_samples))
         sigma_x = np.zeros((n_samples))
         d_nearest = np.partition(self.D, 0)[:, 0]
@@ -682,94 +684,34 @@ class DaskKMedoids:
         # available candidates - S_tar - we draw samples from this population
         unselected_ids = np.arange(n_samples)
         unselected_ids = np.delete(unselected_ids, centers[0:i])
-
         # solution candidates - S_solution
         solution_ids = np.copy(unselected_ids)
-
-        rows = da.arange(n_samples)
-        row_mask = da.isin(rows, solution_ids).astype(int).reshape(n_samples, 1)
-
-        row_chunk_size = X.chunks[0][0]
-        X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
-
         n_used_ref = 0
         while (n_used_ref < n_samples) and (solution_ids.shape[0] > 1):
-
             # sample a batch from S_ref (for init, S_ref = X)
-            idx_ref = self.rng.choice(
+            rng = np.random.default_rng(self.seed)
+            idx_ref = rng.choice(
                 unselected_ids, size=self.batchsize, replace=True
             )
             ci_scale = math.sqrt(
                 (2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize)
             )
             # This finds the distance of all points in idx_ref to all other points in the dataset.
-            # lmbda = np.vectorize(
-            #     lambda j: self._looping_solution_ids(
-            #         X,
-            #         sorted(idx_ref),
-            #         dist_func,
-            #         d_nearest,
-            #         n_used_ref,
-            #         mu_x,
-            #         sigma_x,
-            #         j,
-            #         i,
-            #     ),
-            #     otypes="O",
-            # )
-            # lmbda(solution_ids)
-
-            X_ref = X[sorted(idx_ref), :].compute()
-
-            def looping_solution_ids_1(X_, x_ref, n_used_ref):
-                rows = X_.shape[0]
-                mu_x = np.zeros((rows))
-                sigma_x = np.zeros((rows))
-                for j in range(rows):
-                    try:
-                        if X_[j, -1] == 0:
-                            d = cdist(x_ref, X_[j, :-1].reshape(1, -1), metric=dist_func).squeeze()
-
-                            td = d.sum()
-                            var = sigma_x[j] ** 2 * n_used_ref
-                            n_used_ref, mu_x[j], var = self._update(n_used_ref, mu_x[j], var, d)
-                            var, var_sample = self._finalize(n_used_ref, var)
-                            sigma_x[j] = np.sqrt(var)
-                    except ValueError:
-                        pass
-
-                return np.concatenate((sigma_x.reshape(-1, 1), mu_x.reshape(-1, 1)), axis=1)
-        
-
-            if i == 0:
-                X_copy = X_copy.compute_chunk_sizes()
-                xs = X_copy.map_blocks(looping_solution_ids_1, X_ref, n_used_ref)
-                sigma_x = xs[:, 0].compute()
-                mu_x = xs[:, 1].compute()
-            else:
-                lmbda = np.vectorize(
-                    lambda j: self._looping_solution_ids(
-                        X,
-                        sorted(idx_ref),
-                        dist_func,
-                        d_nearest,
-                        n_used_ref,
-                        mu_x,
-                        sigma_x,
-                        j,
-                        i,
-                    ),
-                    otypes="O",
-                )
-                lmbda(solution_ids)
-                # tmp_delta = xs[:, 0].compute()
-                # for j, tmp in enumerate(tmp_delta):
-                #     g = np.where(tmp_delta > 0, 0, tmp_delta)
-                #     td = np.sum(g)
-                #     mu_x[j] = ((n_used_ref * mu_x[j]) + td) / (n_used_ref + self.batchsize)
-                #     sigma_x[j] = np.std(g)
-            # print(f"sigma x: {sigma_x.shape}")
-            # print(f"mu x: {mu_x.shape}")
+            lmbda = np.vectorize(
+                lambda j: self._looping_solution_ids(
+                    X,
+                    sorted(idx_ref),
+                    dist_func,
+                    d_nearest,
+                    n_used_ref,
+                    mu_x,
+                    sigma_x,
+                    j,
+                    i,
+                ),
+                otypes="O",
+            )
+            lmbda(solution_ids)
             # Remove pts that are unlikely to be a solution
             C_x = ci_scale * sigma_x
             ucb = mu_x + C_x
@@ -777,9 +719,7 @@ class DaskKMedoids:
             # check if LCB of target is <= UCB of current best
             lcb_target = mu_x - C_x
             ucb_best = ucb.min()
-            # print(f"lcb target: {lcb_target}")
             solution_ids = np.where(lcb_target <= ucb_best)[0]
-            
 
             # clean up any center idx that crept in...
             for ic in centers:
@@ -787,12 +727,6 @@ class DaskKMedoids:
                 # print(f"solution ids: {solution_ids}")
                 if ic in solution_ids:
                     solution_ids = np.delete(solution_ids, int(ic))
-                    rows = da.arange(n_samples)
-                    row_mask = da.isin(rows, solution_ids).astype(int).reshape(n_samples, 1)
-                    X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
-
-            if i == 0:
-                print(f"solution ids: {solution_ids}")
             n_used_ref = n_used_ref + self.batchsize
 
         # finish search over the remaining candidates
@@ -826,9 +760,6 @@ class DaskKMedoids:
             self.D = d_best
         else:
             self.D = np.concatenate((self.D, d_best), axis=1)
-        # print(f"ucb best: {ucb_best}")
-
-        # print(f"solution ids: {solution_ids}")
         print("\t updated centers - ", centers)
 
         return centers[i]
@@ -935,6 +866,7 @@ class DaskKMedoids:
         Returns:
             centers (np.ndarray): The updated center medoids
         """
+        # np.random.seed(self.seed)
         done = False
         n_samples = X.shape[0]
         n_clusters = len(centers)
@@ -965,17 +897,11 @@ class DaskKMedoids:
                 list(product(unselected_ids, range(n_clusters))), dtype="int"
             )
 
-            # rows = da.arange(n_samples)
-            # row_chunk_size = X.chunks[0][0]
-
-            # row_mask = da.isin(rows, centers).astype(int).reshape(len(X), 1)
-            # X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
-
-
             n_used_ref = 0
             while (n_used_ref < n_samples) and (swap_pairs.shape[0] > 1):
                 # sample a batch from S_ref (for init, S_ref = X)
-                idx_ref = self.rng.choice(
+                rng = np.random.default_rng(self.seed)
+                idx_ref = rng.choice(
                     unselected_ids, size=self.batchsize, replace=True
                 )
 
@@ -983,41 +909,6 @@ class DaskKMedoids:
                     (2 * math.log(1.0 / delta)) / (n_used_ref + self.batchsize)
                 )
                 # This updates the running mean and confidence interval for each tuple in swap pairs
-                # X_ref = X[sorted(idx_ref), :].compute()
-                
-                # def swap_pairs(X_, X_ref, d, dist_func, idx_ref, n_used_ref, D, E, Tih_min, h_i):
-                #     n_samples = X_.shape[0]
-
-                #     mu_x = np.zeros((rows, n_clusters))
-                #     sigma_x = np.zeros((rows, n_clusters))
-
-                #     if h_i == "h":
-                #         for j in range(n_samples):
-                #             if X_[j, -1] == 0:
-                #                 d_jh = cdist(X_ref[:, :-1], X_[h, :-1].reshape(1, -1), metric=dist_func).squeeze()
-
-                #                 for i in range(n_clusters):
-                #                     d_ji = d[:, i]
-
-                #                     K_jih = np.zeros(self.batchsize)
-                #                     diff_ji = d_ji[idx_ref] - D[idx_ref]
-                #                     idx = np.where(diff_ji > 0)
-
-                #                     diff_jh = d_jh - D[idx_ref]
-                #                     K_jih[idx] = np.minimum(diff_jh[idx], 0)
-
-                #                     idx = np.where(diff_ji == 0)
-                #                     K_jih[idx] = np.minimum(d_jh[idx], E[idx]) - D[idx]
-
-                #                     # base-line update of mu and sigma
-                #                     mu_x[h, i] = ((n_used_ref * mu_x[h, i]) + np.sum(K_jih)) / (
-                #                         n_used_ref + self.batchsize
-                #                     )
-                #                     sigma_x[h, i] = np.std(K_jih)
-
-                #         return np.concatenate((sigma_x, mu_x), axis=1)
-                
-                # X_copy.map_blocks(swap_pairs, X_ref, d, dist_func, sorted(idx_ref), n_used_ref, D, E, Tih_min, "h")
                 np.apply_along_axis(
                     lambda a_swap: self._swap_pairs(
                         X,
@@ -1036,7 +927,6 @@ class DaskKMedoids:
                     1,
                     swap_pairs,
                 )
-
 
                 # downseslect mu and sigma to match candidate pairs
                 flat_indices = np.ravel_multi_index(
@@ -1057,10 +947,6 @@ class DaskKMedoids:
                 # tmp_ids = np.where(lcb_target <= ucb_best)[0]
                 tmp_ids = np.where(lcb_target <= ucb_best)[0]
                 swap_pairs = swap_pairs[tmp_ids]
-
-                # row_mask = da.isin(rows, swap_pairs[:, 0]).astype(int).reshape(len(X), 1)
-                # X_copy = da.concatenate([X, row_mask], axis=1).rechunk({0: row_chunk_size, 1: -1})
-
                 print("\tremaining candidates - ", tmp_ids.shape[0])  # , tmp_ids)
 
                 n_used_ref = n_used_ref + self.batchsize

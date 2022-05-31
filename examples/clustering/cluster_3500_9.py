@@ -40,7 +40,7 @@ kmed2 = KMedoids(
     max_iter=10,
     tol=0.01,
     init_medoids='bandit',
-    swap_medoids="stop",
+    swap_medoids="bandit",
     verbose=False,
 )
 
@@ -48,9 +48,6 @@ kmed2 = KMedoids(
 start_time = time.time()
 kmed2.fit(attributions, verbose=True)
 
-# Initial centers are [1269 1134 660 1095 2417]
-# [2022, 1134, 660, 1095, 2417]
-# cluster sizes - [  73  682  387 1462  896] 
 end_time = time.time()
 elapsed_time = end_time - start_time
 print(f"Finished test in {elapsed_time:.2f}")
@@ -72,7 +69,7 @@ kmed2 = DaskKMedoids(
     max_iter=10,
     tol=0.01,
     init_medoids='bandit',
-    swap_medoids="stop",
+    swap_medoids="bandit",
     verbose=False,
 )
 # attributions = np.array([(0.2, 0.8), (0.1, 0.9), (0.91, 0.09), (0.88, 0.12)])

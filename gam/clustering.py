@@ -302,7 +302,7 @@ class KMedoids:
         self.members = None
         self.init_medoids = init_medoids
         self.swap_medoids = swap_medoids
-        self.rng = np.random.default_rng(seed)
+        self.seed = seed
 
     def fit(self, X, plotit=False, verbose=True):
         """Fits kmedoids with the option for plotting
@@ -655,7 +655,8 @@ class KMedoids:
         n_used_ref = 0
         while (n_used_ref < n_samples) and (solution_ids.shape[0] > 1):
             # sample a batch from S_ref (for init, S_ref = X)
-            idx_ref = self.rng.choice(
+            rng = np.random.default_rng(self.seed)
+            idx_ref = rng.choice(
                 unselected_ids, size=self.batchsize, replace=True
             )
             ci_scale = math.sqrt(
@@ -692,8 +693,8 @@ class KMedoids:
                 # print(f"solution ids: {solution_ids}")
                 if ic in solution_ids:
                     solution_ids = np.delete(solution_ids, int(ic))
-            if i == 0:
-                print(f"solution ids: {solution_ids}")
+            # if i == 0:
+            #     print(f"solution ids: {solution_ids}")
             n_used_ref = n_used_ref + self.batchsize
 
         # finish search over the remaining candidates
@@ -869,7 +870,8 @@ class KMedoids:
             n_used_ref = 0
             while (n_used_ref < n_samples) and (swap_pairs.shape[0] > 1):
                 # sample a batch from S_ref (for init, S_ref = X)
-                idx_ref = self.rng.choice(
+                rng = np.random.default_rng(self.seed)
+                idx_ref = rng.choice(
                     unselected_ids, size=self.batchsize, replace=True
                 )
 
