@@ -14,6 +14,7 @@ import pandas as pd
 from sklearn.metrics import pairwise_distances, silhouette_score
 
 from gam.clustering import KMedoids
+from gam.dask_clustering import DaskKMedoids
 from gam.kendall_tau_distance import mergeSortDistance
 from gam.spearman_distance import spearman_squared_distance
 
@@ -182,23 +183,42 @@ class GAM:
         Returns: normalized attributions (numpy.ndarray). For example, [(.2, .8), (.1, .9)]
         """
         # keepdims for division broadcasting
-        total = np.abs(attributions).sum(axis=1, keepdims=True)
+        if isinstance(attributions, np.ndarray):
+            total = np.abs(attributions).sum(axis=1, keepdims=True)
 
-        return np.abs(attributions) / total
+            return np.abs(attributions) / total
+        
+        total = attributions.map_blocks(lambda x: np.abs(x).sum(axis=1, keepdims=True))
+        
+        row_chunk_size = attributions.chunks[0][0]  # type: ignore
+
+        attr_ = da.concatenate([attributions, total], axis=1).rechunk({0: row_chunk_size, 1: -1})
+        return attr_.map_blocks(lambda x: np.abs(x[:, :-1]) / x[:, [-1]]).compute_chunk_sizes()
 
     def _cluster(self):
         # , distance_function=spearman_squared_distance, max_iter=1000, tol=0.0001):
         """Calls local kmedoids module to group attributions"""
         if self.cluster_method is None:
-            clusters = KMedoids(
-                self.k,
-                self.batchsize,
-                dist_func=self.distance_function,
-                max_iter=self.max_iter,
-                tol=self.tol,
-                init_medoids=self.init_medoids,
-                swap_medoids=self.swap_medoids,
-            )
+            if isinstance(self.attributions, da.Array):
+                clusters = DaskKMedoids(
+                    self.k,
+                    self.batchsize,
+                    dist_func=self.distance_function,
+                    max_iter=self.max_iter,
+                    tol=self.tol,
+                    init_medoids=self.init_medoids,
+                    swap_medoids=self.swap_medoids,
+                )
+            else:
+                clusters = KMedoids(
+                    self.k,
+                    self.batchsize,
+                    dist_func=self.distance_function,
+                    max_iter=self.max_iter,
+                    tol=self.tol,
+                    init_medoids=self.init_medoids,
+                    swap_medoids=self.swap_medoids,
+                )
             clusters.fit(self.clustering_attributions, verbose=self.verbose)
 
             self.subpopulations = clusters.members

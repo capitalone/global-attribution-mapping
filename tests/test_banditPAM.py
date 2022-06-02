@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from gam.clustering import KMedoids
+from gam.dask_clustering import DaskKMedoids
 from gam.spearman_distance import spearman_squared_distance
 import dask.dataframe as dd
 
@@ -21,12 +22,12 @@ def test_banditPAM():
         4,
         dist_func="euclidean",
         batchsize=200,
-        # dist_func=spearman_squared_distance,
         max_iter=20,
         tol=0.001,
         init_medoids="bandit",
         swap_medoids="bandit",
         verbose=False,
+        seed=42
     )
     start_time = time.time()
     kmed2.fit(attributions, verbose=False)
@@ -45,16 +46,16 @@ def test_banditPAM_dask():
     attributions = ddf.to_dask_array(lengths=True)
 
     """"Run kmedoids on sample attributions"""
-    kmed2 = KMedoids(
+    kmed2 = DaskKMedoids(
         n_clusters=4,
         dist_func="euclidean",
         batchsize=200,
-        # dist_func=spearman_squared_distance,
         max_iter=20,
         tol=0.001,
         init_medoids="bandit",
         swap_medoids="bandit",
         verbose=False,
+        seed=42
     )
     start_time = time.time()
     kmed2.fit(attributions, verbose=False)
