@@ -1,9 +1,7 @@
 # GAM (Global Attribution Mapping)
 > Global Explanations for Deep Neural Networks
 
-GAM explains the landscape of neural network predictions across subpopulations. 
-
-This implementation is based on "[Global Explanations for Neural Networks](https://arxiv.org/abs/1902.02384): Mapping the Landscape of Predictions" (AAAI/ACM AIES 2019).
+GAM explains the landscape of model predictions across subpopulations.  This implementation is based on "[Global Explanations for Neural Networks](https://arxiv.org/abs/1902.02384): Mapping the Landscape of Predictions" (AAAI/ACM AIES 2019).  GAM is a method for clustering any set of local attributions - it is agnostic to the choice of model architecture and XAI method.
 
 ## Installation
 ```sh
