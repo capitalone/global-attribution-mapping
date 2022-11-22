@@ -6,7 +6,6 @@ dask-ml==1.8.0
 kaleido==0.2.1
 more-itertools==4.2.0
 pluggy==0.13.1
-py==1.10.0
 pytest==6.2.2
 pytest-cov==2.11.1
 six==1.11.0
