@@ -53,6 +53,7 @@ setup(
         "scikit-learn >= 0.23.2",
         "numpy >= 1.19.2",
         "kaleido == 0.2.1",
+        "joblib >= 1.2.0",
     ],
     extras_require=extras_require,
     python_requires=">=3.6",
