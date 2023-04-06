@@ -710,7 +710,8 @@ class KMedoids:
             # clean up any center idx that crept in...
             for ic in centers:
                 if ic in solution_ids:
-                    solution_ids = np.delete(solution_ids, int(ic))
+                    #solution_ids = np.delete(solution_ids, int(ic))
+                    solution_ids = np.delete(solution_ids, np.where(solution_ids==ic))
 
             n_used_ref = n_used_ref + self.batchsize
 
