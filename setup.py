@@ -51,10 +51,10 @@ setup(
     install_requires=[
         "pandas >= 1.1.3",
         "scikit-learn >= 0.23.2",
-        "numpy >= 1.19.2",
+        "numpy >= 1.22",
         "kaleido == 0.2.1",
         "joblib >= 1.2.0",
     ],
     extras_require=extras_require,
-    python_requires=">=3.6",
+    python_requires=">=3.8",
 )
