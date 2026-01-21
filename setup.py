@@ -30,9 +30,9 @@ extras_require = {
     "complete": [
         "dask[complete] >= 2021.2.0",
         "dask-distance >= 0.2.0",
-        "dask-ml >= 1.8.0",
+        "dask-ml >= 2024.4.4",
         "plotly-express >= 0.4.1",
-        "nbformat >= 4.2.0",
+        "nbformat >= 5.10.4",
     ]
 }
 
