@@ -56,5 +56,5 @@ setup(
         "joblib >= 1.2.0",
     ],
     extras_require=extras_require,
-    python_requires=">=3.8",
+    python_requires=">=3.10",
 )
