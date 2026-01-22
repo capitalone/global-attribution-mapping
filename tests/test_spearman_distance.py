@@ -61,16 +61,20 @@ def test_dask_pairwise_distance_matrix():
     r3 = np.array([0.22, 0.24, 0.26, 0.28])
 
     rankings = np.array([r1, r2, r3])
-    # Testing dask
-    client = Client()
-    D = pairwise_spearman_distance_matrix(da.from_array(rankings))
 
-    # check symmetry, within floating point rounding margin
-    assert (D[0][1] - D[1][0]) < 1e-9
-    # check diagonal is zero
-    assert D[1][1] == 0
-    assert D[2][2] == 0
-    # distance between r2 and r3 is closer than r2 and r1
-    assert D[1][2] < D[1][0]
-    client.close()
+    with Client(dashboard_address=':0', n_workers=1) as client:
+      # Testing dask
+      D = pairwise_spearman_distance_matrix(da.from_array(rankings))
+
+      # Compute now if possible in prep for comparison
+      if hasattr(D, "compute"):
+        D = D.compute()
+  
+      # check symmetry, within floating point rounding margin
+      assert (D[0][1] - D[1][0]) < 1e-9
+      # check diagonal is zero
+      assert D[1][1] == 0
+      assert D[2][2] == 0
+      # distance between r2 and r3 is closer than r2 and r1
+      assert D[1][2] < D[1][0]
 
