@@ -39,13 +39,18 @@ def test_pairwise_distance_matrix():
 
 
 def test_dask_pairwise_distance_matrix():
-    client = Client()
+  with Client(dashboard_address=':0', n_workers=1) as client:
     r1 = [0.05, 0.2, 0.7, 0.05]
     r2 = [0.23, 0.24, 0.26, 0.27]
     r3 = [0.22, 0.24, 0.26, 0.28]
     rankings = np.array([r1, r2, r3])
 
     D = pairwise_distance_matrix(da.from_array(rankings))
+
+    # compute once, now
+    if isinstance(D, da.Array):
+      D = D.compute()
+    
     # check symmetry, within floating point rounding margin
     assert (D[0][1] - D[1][0]) < 1e-9
     # check diagonal is zero
@@ -53,8 +58,6 @@ def test_dask_pairwise_distance_matrix():
     assert D[2][2] == 0
     # distance between r2 and r3 is closer than r2 and r1
     assert D[1][2] < D[1][0]
-    client.close()
-
 
 
 def test_ktau_accuracy():
