@@ -33,6 +33,10 @@ extras_require = {
         "dask-ml >= 2024.4.4",
         "plotly-express >= 0.4.1",
         "nbformat >= 5.10.4",
+        # Security floors for packages pulled in by dask[complete]
+        "tornado >= 6.6",
+        "pillow >= 13.0.0",
+        "pyarrow >= 26.0.0",
     ]
 }
 
@@ -56,5 +60,5 @@ setup(
         "joblib >= 1.2.0",
     ],
     extras_require=extras_require,
-    python_requires=">=3.10",
+    python_requires=">=3.11",
 )
