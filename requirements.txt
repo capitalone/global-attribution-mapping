@@ -11,5 +11,5 @@ plotly-express>=0.4.1
 scikit-learn>=1.5.0
 numpy>=1.22
 nbformat >= 5.10.4
-kaleido == 0.2.1
+kaleido >= 1.0.0
 joblib>=1.2.0

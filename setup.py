@@ -56,7 +56,7 @@ setup(
         "pandas >= 1.1.3",
         "scikit-learn >= 1.5.0",
         "numpy >= 1.22",
-        "kaleido == 0.2.1",
+        "kaleido >= 1.0.0",
         "joblib >= 1.2.0",
     ],
     extras_require=extras_require,
