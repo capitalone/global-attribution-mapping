@@ -28,7 +28,7 @@ DESCRIPTION = "Global Explanations for Deep Neural Networks"
 
 extras_require = {
     "complete": [
-        "dask[complete] >= 2021.2.0",
+        "dask[complete] >= 2021.10.0",
         "dask-distance >= 0.2.0",
         "dask-ml >= 2024.4.4",
         "plotly-express >= 0.4.1",
@@ -50,7 +50,7 @@ setup(
     license="Apache License 2.0",
     install_requires=[
         "pandas >= 1.1.3",
-        "scikit-learn >= 0.23.2",
+        "scikit-learn >= 1.5.0",
         "numpy >= 1.22",
         "kaleido == 0.2.1",
         "joblib >= 1.2.0",
